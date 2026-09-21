@@ -1,4 +1,4 @@
-name: Build XLite v0.4.1 Unsigned
+name: Build XLite v0.5 GeckoView
 
 on:
   push:
@@ -50,13 +50,13 @@ jobs:
       - name: Zipalign unsigned APK
         run: |
           IN="xlite-build/app/build/outputs/apk/release/app-release-unsigned.apk"
-          OUT="XLite-for-X-v0.4.1-Android8-ARMv7-unsigned-aligned.apk"
+          OUT="XLite-for-X-v0.5-Android8-ARMv7-unsigned-aligned.apk"
           "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign" -f -p 4 "$IN" "$OUT"
           "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign" -c -v 4 "$OUT"
 
       - name: Upload unsigned APK
         uses: actions/upload-artifact@v4
         with:
-          name: XLite-for-X-v0.4.1-unsigned
-          path: XLite-for-X-v0.4.1-Android8-ARMv7-unsigned-aligned.apk
+          name: XLite-for-X-v0.5-GeckoView-unsigned
+          path: XLite-for-X-v0.5-Android8-ARMv7-unsigned-aligned.apk
           if-no-files-found: error
