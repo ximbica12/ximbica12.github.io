@@ -1,4 +1,4 @@
-name: Build XLite v0.5 GeckoView
+name: Build XLite Gecko v0.6 Recovery
 
 on:
   push:
@@ -27,7 +27,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Ensure Android SDK 35
+      - name: Ensure Android SDK 37.1
         run: |
           SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -n 1)"
           if [ -n "$SDKMANAGER" ]; then
@@ -38,25 +38,21 @@ jobs:
             test -x "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2"
           fi
 
-      - name: Gradle 8.9
+      - name: Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.6.0'
 
-      - name: Build release unsigned
+      - name: Build signed debug APK
         working-directory: xlite-build
-        run: gradle --no-daemon --stacktrace :app:assembleRelease
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
 
-      - name: Zipalign unsigned APK
-        run: |
-          IN="xlite-build/app/build/outputs/apk/release/app-release-unsigned.apk"
-          OUT="XLite-for-X-v0.5-Android8-ARMv7-unsigned-aligned.apk"
-          "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -f -p 4 "$IN" "$OUT"
-          "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -c -v 4 "$OUT"
+      - name: Rename APK
+        run: cp xlite-build/app/build/outputs/apk/debug/app-debug.apk XLite-Gecko-v0.6-Android8-ARMv7.apk
 
-      - name: Upload unsigned APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: XLite-for-X-v0.5-GeckoView-unsigned
-          path: XLite-for-X-v0.5-Android8-ARMv7-unsigned-aligned.apk
+          name: XLite-Gecko-v0.6-Recovery
+          path: XLite-Gecko-v0.6-Android8-ARMv7.apk
           if-no-files-found: error
