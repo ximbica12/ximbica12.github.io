@@ -172,7 +172,7 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public GeckoResult<AllowOrDeny> onLoadRequest(
+            public GeckoResult<GeckoSession.NavigationDelegate.AllowOrDeny> onLoadRequest(
                     GeckoSession s, LoadRequest request) {
                 String uri = request.uri;
                 if (uri == null) return null;
