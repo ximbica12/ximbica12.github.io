@@ -674,3 +674,15 @@ document.addEventListener('DOMContentLoaded', () => {
     try { chrome.storage.local.set({bypassAgeVerification: false}) } catch (_) {}
   }
 })
+
+
+// XLITE_SAFE_OPTIONS_PATCH
+try {
+  const unsafe = document.querySelector('input[name="bypassAgeVerification"]')
+  if (unsafe) {
+    unsafe.checked = false
+    unsafe.disabled = true
+    const row = unsafe.closest('section.checkbox') || unsafe.closest('label')
+    if (row) row.style.display = 'none'
+  }
+} catch (_) {}
