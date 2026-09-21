@@ -13,12 +13,21 @@ while off < len(data):
     if ctype==0x4E4F534A:
         doc=json.loads(chunk.decode('utf-8').rstrip('\x00 \t\r\n'))
         break
-if doc is None: raise RuntimeError('No JSON chunk')
+if doc is None:
+    raise RuntimeError('No JSON chunk')
 
 print('GLTF version', version, 'bytes', total)
 print('extensionsUsed', doc.get('extensionsUsed'))
 nodes=doc.get('nodes',[])
 print('nodes', len(nodes), 'meshes', len(doc.get('meshes',[])), 'skins', len(doc.get('skins',[])))
+
+vrm=doc.get('extensions',{}).get('VRM',{})
+meta=vrm.get('meta',{})
+print('--- VRM meta ---')
+for key in ('title','version','author','contactInformation','reference','allowedUserName','violentUssageName','sexualUssageName','commercialUssageName','licenseName','otherLicenseUrl'):
+    if key in meta:
+        print(key, '=', meta.get(key))
+
 pat=re.compile(r'(bust|breast|mune|chest|upperchest|spine|胸|乳)', re.I)
 print('--- candidate chest/bust nodes ---')
 for i,n in enumerate(nodes):
@@ -26,7 +35,6 @@ for i,n in enumerate(nodes):
     if pat.search(name):
         print(i, name)
 
-vrm=doc.get('extensions',{}).get('VRM',{})
 hum=vrm.get('humanoid',{}).get('humanBones',[])
 print('--- humanoid chest mapping ---')
 for h in hum:
@@ -39,7 +47,7 @@ bgs=sec.get('boneGroups',[])
 print('spring bone groups', len(bgs))
 for j,g in enumerate(bgs):
     roots=[nodes[i].get('name','') for i in g.get('bones',[]) if isinstance(i,int) and i<len(nodes)]
-    print('group',j,'comment=',g.get('comment'),'stiff=',g.get('stiffiness'),'drag=',g.get('dragForce'),'bones=',roots[:12])
+    print('group',j,'comment=',g.get('comment'),'stiff=',g.get('stiffiness'),'drag=',g.get('dragForce'),'bones=',roots[:16])
 
 print('--- mesh summary ---')
 for i,m in enumerate(doc.get('meshes',[])):
