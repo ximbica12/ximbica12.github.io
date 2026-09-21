@@ -1,73 +1,84 @@
 (() => {
   "use strict";
 
-  const translated = new WeakSet();
-  let scheduled = false;
-  const translationPattern = /^(translate post|translate tweet|traduzir post|traduzir tweet|traduzir)$/i;
+  const processedVideos = new WeakSet();
+  const translatedControls = new WeakSet();
 
-  function hidePromoted(root = document) {
-    root.querySelectorAll('[data-testid="placementTracking"]').forEach((marker) => {
-      const article = marker.closest("article");
+  let timer = 0;
+  let running = false;
+
+  const translationPattern =
+    /^(translate post|translate tweet|traduzir post|traduzir tweet|traduzir)$/i;
+
+  function visible(el) {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.bottom >= -120 && r.top <= innerHeight + 120;
+  }
+
+  function hidePromoted() {
+    document.querySelectorAll('[data-testid="placementTracking"]').forEach(marker => {
       const cell = marker.closest('[data-testid="cellInnerDiv"]');
-      (article || cell || marker).setAttribute("data-xlite-ad", "1");
+      const article = marker.closest("article");
+      const target = cell || article;
+      if (target) target.setAttribute("data-xlite-ad", "1");
     });
   }
 
-  function optimizeVideos(root = document) {
-    root.querySelectorAll("video").forEach((video) => {
-      if (video.hasAttribute("data-xlite-video")) return;
-      video.setAttribute("data-xlite-video", "1");
+  function optimizeVisibleVideos() {
+    document.querySelectorAll("video").forEach(video => {
+      if (processedVideos.has(video)) return;
+      processedVideos.add(video);
       video.setAttribute("playsinline", "");
       if (!video.autoplay) video.preload = "metadata";
     });
   }
 
-  function autoTranslate(root = document) {
-    root.querySelectorAll('button, a, [role="button"]').forEach((control) => {
-      if (translated.has(control)) return;
+  function translateVisiblePosts() {
+    document.querySelectorAll('button,[role="button"]').forEach(control => {
+      if (translatedControls.has(control) || !visible(control)) return;
 
-      const text = (control.textContent || "").trim();
-      if (!translationPattern.test(text)) return;
+      const label = (
+        control.getAttribute("aria-label") ||
+        control.textContent ||
+        ""
+      ).trim();
 
-      const rect = control.getBoundingClientRect();
-      const visible =
-        rect.bottom >= 0 &&
-        rect.top <= window.innerHeight &&
-        rect.width > 0 &&
-        rect.height > 0;
+      if (!translationPattern.test(label)) return;
 
-      if (!visible) return;
-
-      translated.add(control);
-      setTimeout(() => {
-        try {
-          control.click();
-        } catch (_) {
-        }
-      }, 120);
+      translatedControls.add(control);
+      try {
+        control.click();
+      } catch (_) {}
     });
   }
 
   function run() {
-    scheduled = false;
-    hidePromoted();
-    optimizeVideos();
-    autoTranslate();
+    timer = 0;
+    if (running || document.hidden) return;
+
+    running = true;
+    try {
+      hidePromoted();
+      optimizeVisibleVideos();
+      translateVisiblePosts();
+    } finally {
+      running = false;
+    }
   }
 
-  function schedule() {
-    if (scheduled) return;
-    scheduled = true;
-    requestAnimationFrame(run);
+  function schedule(delay = 900) {
+    if (timer) return;
+    timer = setTimeout(run, delay);
   }
 
-  new MutationObserver(schedule).observe(document.documentElement, {
+  const observer = new MutationObserver(() => schedule(900));
+  observer.observe(document.documentElement, {
     childList: true,
     subtree: true
   });
 
-  document.addEventListener("scroll", schedule, { passive: true });
-  document.addEventListener("visibilitychange", schedule, { passive: true });
+  document.addEventListener("scroll", () => schedule(450), { passive: true });
+  document.addEventListener("visibilitychange", () => schedule(300), { passive: true });
 
-  run();
+  schedule(1200);
 })();
