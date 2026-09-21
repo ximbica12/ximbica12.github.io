@@ -27,10 +27,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK 35
+      - name: Ensure Android SDK 35
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          if [ -n "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses >/dev/null || true
+            "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          else
+            test -f "$ANDROID_SDK_ROOT/platforms/android-35/android.jar"
+            test -x "$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt2"
+          fi
 
       - name: Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
