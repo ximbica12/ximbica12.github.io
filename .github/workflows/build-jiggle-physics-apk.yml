@@ -50,6 +50,19 @@ jobs:
           grep -q "J_Sec_L_Bust1" /tmp/rig.txt
           grep -q "J_Sec_R_Bust1" /tmp/rig.txt
 
+      - name: Validate runtime JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("app/src/main/assets/index.html").read_text(encoding="utf-8")
+          blocks = re.findall(r"<script>(.*?)</script>", html, re.S)
+          if not blocks:
+              raise SystemExit("No inline runtime script found")
+          Path("/tmp/anime-jiggle-runtime.js").write_text("\n".join(blocks), encoding="utf-8")
+          PY
+          node --check /tmp/anime-jiggle-runtime.js
+
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
 
