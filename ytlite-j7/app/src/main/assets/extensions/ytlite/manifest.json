@@ -1,0 +1,30 @@
+{
+  "manifest_version": 2,
+  "name": "YT Lite J7 Tweaks",
+  "version": "0.1.0",
+  "description": "J7-focused YouTube mobile tweaks: H.264, app-like cleanup and PT-BR captions.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ytlite-j7@ximbica.local",
+      "strict_min_version": "115.0"
+    },
+    "gecko_android": {
+      "strict_min_version": "115.0"
+    }
+  },
+  "permissions": [
+    "https://*.youtube.com/*",
+    "https://youtu.be/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.youtube.com/*",
+        "https://youtu.be/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ]
+}

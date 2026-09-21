@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.ximbica.ytlite'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.ximbica.ytlite"
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName "0.1.0"
+        ndk {
+            abiFilters "armeabi-v7a"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        resources {
+            excludes += [
+                "META-INF/DEPENDENCIES",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt"
+            ]
+        }
+    }
+}
+
+dependencies {
+    def geckoviewVersion = "154.0.20260824154132"
+    implementation "org.mozilla.geckoview:geckoview-armeabi-v7a:$geckoviewVersion"
+}
