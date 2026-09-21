@@ -32,7 +32,7 @@ jobs:
           SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -n 1)"
           if [ -n "$SDKMANAGER" ]; then
             yes | "$SDKMANAGER" --licenses >/dev/null || true
-            "$SDKMANAGER" "platforms;android-37" "build-tools;36.0.0"
+            "$SDKMANAGER" --channel=3 "platforms;android-37" "build-tools;36.0.0"
           else
             test -f "$ANDROID_SDK_ROOT/platforms/android-37/android.jar"
             test -x "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2"
