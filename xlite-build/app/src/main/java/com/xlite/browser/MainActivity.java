@@ -8,10 +8,12 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import org.json.JSONObject;
@@ -38,14 +40,18 @@ public class MainActivity extends Activity {
 
     private static GeckoRuntime runtime;
 
+    private FrameLayout root;
     private GeckoView geckoView;
     private GeckoSession session;
+    private TextView startup;
     private SharedPreferences prefs;
     private WebExtension controlPanel;
     private WebExtension helperExtension;
 
     private boolean canGoBack;
     private boolean canGoForward;
+    private boolean firstPaint;
+    private int pendingExtensions;
     private String currentUri = HOME;
 
     private GeckoSession.PromptDelegate.FilePrompt pendingFilePrompt;
@@ -65,13 +71,29 @@ public class MainActivity extends Activity {
 
         String incoming = getIntent() != null ? getIntent().getDataString() : null;
         String initial = isHttp(incoming) ? incoming : HOME;
-        installExtensionsAndLoad(initial);
 
-        if (!prefs.getBoolean("v05_gecko_hint", false)) {
-            prefs.edit().putBoolean("v05_gecko_hint", true).apply();
+        // Critical recovery change: render X immediately. Extension installation is never
+        // allowed to block the first page load.
+        currentUri = initial;
+        session.loadUri(initial);
+
+        // Extensions now install after navigation has already started.
+        installExtensionsInBackground();
+
+        // If an old GPU/driver stalls first paint, give Gecko one explicit reload after
+        // the compositor has had time to come up.
+        geckoView.postDelayed(() -> {
+            if (!firstPaint && session != null && session.isOpen()) {
+                startup.setText("Reiniciando renderização…");
+                session.reload();
+            }
+        }, 7000);
+
+        if (!prefs.getBoolean("v06_hint", false)) {
+            prefs.edit().putBoolean("v06_hint", true).apply();
             Toast.makeText(
                     this,
-                    "XLite v0.5: abra o menu do X e toque em XLite. Fallback: segure o logo do X.",
+                    "XLite Gecko v0.6: esta build usa renderizador compatível para corrigir a tela preta.",
                     Toast.LENGTH_LONG
             ).show();
         }
@@ -112,15 +134,33 @@ public class MainActivity extends Activity {
     }
 
     private void buildUi() {
-        FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.BLACK);
+        root = new FrameLayout(this);
+        root.setBackgroundColor(0xFF101114);
 
         geckoView = new GeckoView(this);
-        geckoView.setViewBackend(GeckoView.BACKEND_SURFACE_VIEW);
-        geckoView.coverUntilFirstPaint(Color.BLACK);
+
+        // TextureView is intentionally used in this recovery build. Mozilla documents
+        // it as the Android-composited alternative to SurfaceView. It costs a little
+        // more memory, but avoids some old Samsung/Mali SurfaceView black-screen cases.
+        geckoView.setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW);
+        geckoView.setBackgroundColor(0xFF101114);
 
         root.addView(
                 geckoView,
+                new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                )
+        );
+
+        startup = new TextView(this);
+        startup.setText("Iniciando Mozilla Gecko…");
+        startup.setTextColor(0xFFE7E9EA);
+        startup.setTextSize(15f);
+        startup.setGravity(Gravity.CENTER);
+        startup.setBackgroundColor(0xFF101114);
+        root.addView(
+                startup,
                 new FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
@@ -182,6 +222,7 @@ public class MainActivity extends Activity {
                 }
 
                 String scheme = parsed.getScheme();
+
                 if ("moz-extension".equalsIgnoreCase(scheme)
                         || "about".equalsIgnoreCase(scheme)
                         || "data".equalsIgnoreCase(scheme)) {
@@ -190,6 +231,7 @@ public class MainActivity extends Activity {
 
                 if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
                     String host = parsed.getHost();
+
                     if (isXHost(host)) return null;
 
                     try {
@@ -217,6 +259,23 @@ public class MainActivity extends Activity {
 
         session.setContentDelegate(new GeckoSession.ContentDelegate() {
             @Override
+            public void onFirstComposite(GeckoSession s) {
+                runOnUiThread(() -> {
+                    startup.setText("Carregando X…");
+                });
+            }
+
+            @Override
+            public void onFirstContentfulPaint(GeckoSession s) {
+                firstPaint = true;
+                runOnUiThread(() -> {
+                    if (startup.getParent() != null) {
+                        root.removeView(startup);
+                    }
+                });
+            }
+
+            @Override
             public void onFullScreen(GeckoSession s, boolean fullScreen) {
                 if (fullScreen) {
                     getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -227,21 +286,19 @@ public class MainActivity extends Activity {
 
             @Override
             public void onCrash(GeckoSession s) {
-                Toast.makeText(
-                        MainActivity.this,
-                        "Gecko reiniciado após uma falha.",
-                        Toast.LENGTH_SHORT
-                ).show();
+                runOnUiThread(() -> {
+                    startup.setText("Gecko reiniciando…");
+                    if (startup.getParent() == null) root.addView(startup);
+                });
                 recoverSession();
             }
 
             @Override
             public void onKill(GeckoSession s) {
-                Toast.makeText(
-                        MainActivity.this,
-                        "Gecko liberou memória. Reabrindo o X.",
-                        Toast.LENGTH_SHORT
-                ).show();
+                runOnUiThread(() -> {
+                    startup.setText("Recuperando memória…");
+                    if (startup.getParent() == null) root.addView(startup);
+                });
                 recoverSession();
             }
 
@@ -257,11 +314,6 @@ public class MainActivity extends Activity {
                         if (response.body != null) response.body.close();
                     } catch (Exception ignored) {
                     }
-                    Toast.makeText(
-                            MainActivity.this,
-                            "Arquivo detectado. Use abrir externamente para salvar se necessário.",
-                            Toast.LENGTH_SHORT
-                    ).show();
                 }
             }
         });
@@ -316,7 +368,9 @@ public class MainActivity extends Activity {
         runtime.getWebExtensionController().setTabActive(session, true);
     }
 
-    private void installExtensionsAndLoad(String initial) {
+    private void installExtensionsInBackground() {
+        pendingExtensions = 2;
+
         WebExtensionController controller = runtime.getWebExtensionController();
 
         controller.ensureBuiltIn(
@@ -324,19 +378,30 @@ public class MainActivity extends Activity {
                 CPFT_ID
         ).accept(ext -> {
             controlPanel = ext;
-            installHelperThenLoad(initial);
-        }, error -> installHelperThenLoad(initial));
-    }
+            extensionFinished();
+        }, error -> extensionFinished());
 
-    private void installHelperThenLoad(String initial) {
-        runtime.getWebExtensionController().ensureBuiltIn(
+        controller.ensureBuiltIn(
                 "resource://android/assets/xlite-helper/",
                 HELPER_ID
         ).accept(ext -> {
             helperExtension = ext;
             attachHelperMessaging();
-            session.loadUri(initial);
-        }, error -> session.loadUri(initial));
+            extensionFinished();
+        }, error -> extensionFinished());
+    }
+
+    private void extensionFinished() {
+        pendingExtensions--;
+
+        if (pendingExtensions <= 0) {
+            // One reload makes document_start extension scripts apply to the visible X page.
+            geckoView.postDelayed(() -> {
+                if (session != null && session.isOpen()) {
+                    session.reload();
+                }
+            }, 500);
+        }
     }
 
     private void attachHelperMessaging() {
@@ -367,6 +432,7 @@ public class MainActivity extends Activity {
                         }
 
                         JSONObject reply = new JSONObject();
+
                         try {
                             reply.put("videoMax", prefs.getInt("video_max_height", 720));
                             reply.put("autoTranslate", prefs.getBoolean("auto_translate", true));
@@ -392,15 +458,15 @@ public class MainActivity extends Activity {
                 "⌂  Início",
                 "↻  Recarregar",
                 "⚙  Control Panel for Twitter — painel completo",
-                (translate ? "✓  " : "○  ") + "Tradução automática dos posts",
+                (translate ? "✓  " : "○  ") + "Tradução automática",
                 "▶  Vídeo máximo: " + video + "p",
                 (performance ? "✓  " : "○  ") + "Modo fluido J7",
-                "🌐  Abrir esta página fora do XLite",
+                "🌐  Abrir externamente",
                 "ⓘ  Sobre"
         };
 
         new AlertDialog.Builder(this)
-                .setTitle("XLite for X v0.5")
+                .setTitle("XLite Gecko v0.6")
                 .setItems(items, (d, which) -> {
                     switch (which) {
                         case 0:
@@ -484,15 +550,12 @@ public class MainActivity extends Activity {
                 : "carregando";
 
         new AlertDialog.Builder(this)
-                .setTitle("XLite for X v0.5")
+                .setTitle("XLite Gecko v0.6")
                 .setMessage(
-                        "Motor: Mozilla GeckoView 156 estável • ARMv7 • Android 8+\n\n" +
-                        "Renderização: SurfaceView\n" +
-                        "Control Panel for Twitter: " + cpftVersion + " como WebExtension real\n\n" +
-                        "Sem barra fixa e sem gestos de navegação. Abra o item XLite dentro do menu do X; " +
-                        "como fallback, segure o logo do X.\n\n" +
-                        "Proteção Gecko contra trackers de anúncios, analytics, fingerprinting e cryptomining.\n\n" +
-                        "A opção de contornar verificação etária permanece desativada."
+                        "Motor: Mozilla GeckoView 156 • ARMv7 • Android 8+\n\n" +
+                        "Renderizador desta build: TextureView compatível\n" +
+                        "Control Panel: " + cpftVersion + "\n\n" +
+                        "O X é carregado antes das extensões para impedir tela preta causada por inicialização bloqueada."
                 )
                 .setPositiveButton("OK", null)
                 .show();
@@ -507,6 +570,8 @@ public class MainActivity extends Activity {
 
     private void recoverSession() {
         runOnUiThread(() -> {
+            firstPaint = false;
+
             try {
                 geckoView.releaseSession();
             } catch (Exception ignored) {
@@ -518,7 +583,8 @@ public class MainActivity extends Activity {
             }
 
             createSession();
-            installExtensionsAndLoad(currentUri == null ? HOME : currentUri);
+            session.loadUri(currentUri == null ? HOME : currentUri);
+            installExtensionsInBackground();
         });
     }
 
@@ -556,9 +622,11 @@ public class MainActivity extends Activity {
 
                 if (clips != null && clips.getItemCount() > 0) {
                     Uri[] uris = new Uri[clips.getItemCount()];
+
                     for (int i = 0; i < clips.getItemCount(); i++) {
                         uris[i] = clips.getItemAt(i).getUri();
                     }
+
                     response = pendingFilePrompt.confirm(getApplicationContext(), uris);
                 } else if (data.getData() != null) {
                     response = pendingFilePrompt.confirm(
@@ -595,6 +663,7 @@ public class MainActivity extends Activity {
             session.setActive(false);
             session.setPriorityHint(GeckoSession.PRIORITY_DEFAULT);
         }
+
         super.onPause();
     }
 
