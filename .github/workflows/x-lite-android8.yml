@@ -36,7 +36,7 @@ jobs:
           fi
           "$SDKMANAGER" --version
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
+          "$SDKMANAGER" "platforms;android-37.2" "build-tools;37.0.0" "platform-tools"
 
       - name: Gradle 9.6
         uses: gradle/actions/setup-gradle@v4
