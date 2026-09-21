@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace 'com.ximbica.ytlite'
-    compileSdk 37
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.ximbica.ytlite"
@@ -44,6 +44,6 @@ android {
 }
 
 dependencies {
-    def geckoviewVersion = "154.0.20260824154132"
+    def geckoviewVersion = "153.0.20260730155536"
     implementation "org.mozilla.geckoview:geckoview-armeabi-v7a:$geckoviewVersion"
 }
