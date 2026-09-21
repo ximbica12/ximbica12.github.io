@@ -14,6 +14,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -83,6 +84,10 @@ public class MainActivity extends Activity {
     private boolean documentStartInstalled;
     private boolean resumedOnce;
     private boolean backLongPressed;
+    private float gestureStartX;
+    private float gestureStartY;
+    private long gestureStartTime;
+    private int gestureEdge;
 
     private ValueCallback<Uri[]> fileCallback;
     private View customView;
@@ -112,6 +117,7 @@ public class MainActivity extends Activity {
         setContentView(root);
 
         configureWebView();
+        setupEdgeGestures();
         installDocumentStartScripts();
 
         if (state != null) {
@@ -121,10 +127,10 @@ public class MainActivity extends Activity {
             loadUrl(isHttp(incoming) ? incoming : HOME);
         }
 
-        if (!prefs.getBoolean("v4_hint_shown", false)) {
-            prefs.edit().putBoolean("v4_hint_shown", true).apply();
+        if (!prefs.getBoolean("v041_hint_shown", false)) {
+            prefs.edit().putBoolean("v041_hint_shown", true).apply();
             Toast.makeText(this,
-                    "XLite v0.4: segure o botão Voltar para abrir as opções",
+                    "Gestos: esquerda→direita = voltar • direita→esquerda = avançar • topo→baixo = menu",
                     Toast.LENGTH_LONG).show();
         }
     }
@@ -279,6 +285,77 @@ public class MainActivity extends Activity {
                 }
             }
         });
+    }
+
+    private void setupEdgeGestures() {
+        web.setOnTouchListener((v, event) -> {
+            final float density = getResources().getDisplayMetrics().density;
+            final float edgeSize = 24f * density;
+            final float topSize = 32f * density;
+            final float horizontalThreshold = 96f * density;
+            final float verticalThreshold = 112f * density;
+
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    gestureStartX = event.getX();
+                    gestureStartY = event.getY();
+                    gestureStartTime = System.currentTimeMillis();
+                    gestureEdge = 0;
+
+                    if (gestureStartX <= edgeSize) {
+                        gestureEdge = 1;
+                    } else if (gestureStartX >= web.getWidth() - edgeSize) {
+                        gestureEdge = 2;
+                    } else if (gestureStartY <= topSize) {
+                        gestureEdge = 3;
+                    }
+                    break;
+
+                case MotionEvent.ACTION_UP:
+                    if (gestureEdge == 0) break;
+
+                    float dx = event.getX() - gestureStartX;
+                    float dy = event.getY() - gestureStartY;
+                    long elapsed = System.currentTimeMillis() - gestureStartTime;
+                    int edge = gestureEdge;
+                    gestureEdge = 0;
+
+                    if (elapsed > 900) break;
+
+                    if (edge == 1 && dx >= horizontalThreshold
+                            && Math.abs(dy) <= horizontalThreshold) {
+                        handleBackGesture();
+                    } else if (edge == 2 && dx <= -horizontalThreshold
+                            && Math.abs(dy) <= horizontalThreshold) {
+                        if (web.canGoForward()) {
+                            web.goForward();
+                            Toast.makeText(this, "Avançar", Toast.LENGTH_SHORT).show();
+                        }
+                    } else if (edge == 3 && dy >= verticalThreshold
+                            && Math.abs(dx) <= verticalThreshold) {
+                        showMenu();
+                    }
+                    break;
+
+                case MotionEvent.ACTION_CANCEL:
+                    gestureEdge = 0;
+                    break;
+            }
+
+            // Não consome o toque: a página continua rolando/tocando normalmente.
+            return false;
+        });
+    }
+
+    private void handleBackGesture() {
+        if (customView != null) {
+            hideCustomView();
+        } else if (web.canGoBack()) {
+            web.goBack();
+            Toast.makeText(this, "Voltar", Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, "Sem página anterior", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void installDocumentStartScripts() {
@@ -570,7 +647,7 @@ public class MainActivity extends Activity {
         };
 
         new AlertDialog.Builder(this)
-                .setTitle("XLite for X v0.4")
+                .setTitle("XLite for X v0.4.1")
                 .setItems(items, (d, which) -> {
                     switch (which) {
                         case 0:
@@ -674,8 +751,8 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("XLite for X v0.4")
                 .setMessage(
-                        "Android 8+ • pacote com assinatura fixa a partir da v0.4\n\n" +
-                        "Segure Voltar para abrir este menu.\n\n" +
+                        "Android 8+ • assinatura fixa desde a v0.4\n\n" +
+                        "Gestos: borda esquerda → direita = voltar; borda direita → esquerda = avançar; do topo para baixo = menu.\n\n" +
                         "Control Panel for Twitter 4.24.1 completo integrado com injeção no início do documento quando o WebView suporta.\n\n" +
                         "Tradução automática usa o controle nativo de tradução do X.\n\n" +
                         "Vídeo: playlists HLS são filtradas para não anunciar variantes acima do limite escolhido.\n\n" +
