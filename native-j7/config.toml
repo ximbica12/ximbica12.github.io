@@ -1,0 +1,26 @@
+parallel-jobs = 1
+compression-level = 6
+remove-rv-integrations-checks = true
+patches-version = "v4.2.0"
+cli-version = "latest"
+
+[YouTube-J7]
+app-name = "YouTube"
+archive-dlurl = "https://archive.org/download/jhc-apks/apks/com.google.android.youtube"
+apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/youtube"
+uptodown-dlurl = "https://youtube.en.uptodown.com/android"
+
+patches-source = "anddea/revanced-patches"
+cli-source = "MorpheApp/morphe-cli"
+rv-brand = "ReVanced anddea"
+
+version = "20.05.46"
+arch = "arm-v7a"
+dpi = "nodpi anydpi"
+build-mode = "apk"
+include-stock = "merged"
+exclusive-patches = true
+
+included-patches = """  'Hide ads'   'SponsorBlock'   'GmsCore support'   'Spoof video streams'   'Disable QUIC protocol'   'Video playback'   'Remove background playback restrictions'   'Return YouTube Dislike'   'Sanitize sharing links'   'Custom branding icon for YouTube'   'Custom branding name for YouTube'   """
+
+patcher-args = """  -OappIcon=revancify_red   -OchangeSplashIcon=false   -OrestoreOldSplashAnimation=false   -OappName=YouTube   -OgmsCoreVendorGroupId=app.revanced   -OcheckGmsCore=true   -OdisableCoreServices=false   -OpackageNameYouTube=anddea.youtube   -OpatchAllManifest=false   """

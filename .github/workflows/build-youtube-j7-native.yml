@@ -1,0 +1,82 @@
+name: Build YouTube J7 Native
+
+on:
+  push:
+    branches: [ "yt-native-j7" ]
+    paths:
+      - "native-j7/**"
+      - ".github/workflows/build-youtube-j7-native.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq zip unzip curl git
+
+      - name: Fetch trusted builder
+        run: |
+          git clone --depth 1 https://github.com/peternmuller/revanced-morphe-builder.git builder
+          cp native-j7/config.toml builder/j7.toml
+
+      - name: Build minimal ARMv7 YouTube
+        working-directory: builder
+        run: |
+          set -euxo pipefail
+          bash build.sh j7.toml
+          echo "=== BUILD OUTPUT ==="
+          find build -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
+
+      - name: Select and verify APK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p dist
+          mapfile -t APKS < <(find builder/build -type f -name '*.apk' | sort)
+          if [ "${#APKS[@]}" -lt 1 ]; then
+            echo "No patched APK produced"
+            exit 1
+          fi
+
+          PATCHED="${APKS[0]}"
+          cp "$PATCHED" dist/YouTube-J7-Native-v0.2.0.apk
+
+          unzip -t dist/YouTube-J7-Native-v0.2.0.apk >/dev/null
+          unzip -l dist/YouTube-J7-Native-v0.2.0.apk | grep 'lib/armeabi-v7a/' | head
+          if unzip -l dist/YouTube-J7-Native-v0.2.0.apk | grep -q 'lib/arm64-v8a/'; then
+            echo "Unexpected arm64 libraries present"
+            exit 1
+          fi
+          sha256sum dist/YouTube-J7-Native-v0.2.0.apk | tee dist/SHA256SUMS.txt
+
+      - name: Bundle MicroG-RE universal
+        run: |
+          set -euxo pipefail
+          curl -fL --retry 4             "https://github.com/MorpheApp/MicroG-RE/releases/download/7.1.1/microg-7.1.1.apk"             -o dist/MicroG-RE-7.1.1-universal.apk
+          echo "ae6bbffbf9f63be1328c0a7ee6f39859e0921e6d222a0a3b00ba4c97e290e883  dist/MicroG-RE-7.1.1-universal.apk" | sha256sum -c -
+          sha256sum dist/MicroG-RE-7.1.1-universal.apk >> dist/SHA256SUMS.txt
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: YouTube-J7-Native-v0.2.0
+          path: |
+            dist/YouTube-J7-Native-v0.2.0.apk
+            dist/MicroG-RE-7.1.1-universal.apk
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
