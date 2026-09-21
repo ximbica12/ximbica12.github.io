@@ -1,0 +1,33 @@
+html, body {
+  text-size-adjust: 100% !important;
+  -webkit-text-size-adjust: 100% !important;
+}
+
+@media (max-width: 600px) {
+  main,
+  [data-testid="primaryColumn"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  [data-testid="sidebarColumn"] {
+    display: none !important;
+  }
+}
+
+[data-xlite-ad="1"] {
+  display: none !important;
+}
+
+video {
+  max-width: 100% !important;
+}
+
+* {
+  scroll-behavior: auto !important;
+}
+
+[data-testid="cellInnerDiv"] {
+  transition-duration: 0.01ms !important;
+}
