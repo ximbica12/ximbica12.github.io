@@ -32,16 +32,16 @@ jobs:
           SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -n 1)"
           if [ -n "$SDKMANAGER" ]; then
             yes | "$SDKMANAGER" --licenses >/dev/null || true
-            "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+            "$SDKMANAGER" "platforms;android-37" "build-tools;36.0.0"
           else
-            test -f "$ANDROID_SDK_ROOT/platforms/android-35/android.jar"
-            test -x "$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt2"
+            test -f "$ANDROID_SDK_ROOT/platforms/android-37/android.jar"
+            test -x "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2"
           fi
 
       - name: Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '9.6.0'
 
       - name: Build release unsigned
         working-directory: xlite-build
@@ -51,8 +51,8 @@ jobs:
         run: |
           IN="xlite-build/app/build/outputs/apk/release/app-release-unsigned.apk"
           OUT="XLite-for-X-v0.5-Android8-ARMv7-unsigned-aligned.apk"
-          "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign" -f -p 4 "$IN" "$OUT"
-          "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign" -c -v 4 "$OUT"
+          "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -f -p 4 "$IN" "$OUT"
+          "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -c -v 4 "$OUT"
 
       - name: Upload unsigned APK
         uses: actions/upload-artifact@v4
