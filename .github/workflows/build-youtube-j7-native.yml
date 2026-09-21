@@ -98,18 +98,18 @@ jobs:
           echo 'ae6bbffbf9f63be1328c0a7ee6f39859e0921e6d222a0a3b00ba4c97e290e883  dist/MicroG-RE-7.1.1-universal.apk' | sha256sum -c -
           sha256sum dist/MicroG-RE-7.1.1-universal.apk >> dist/SHA256SUMS.txt
 
-          cat > dist/INSTALL.txt <<'EOF'
-YT J7 Native v0.2.1
-
-1. Install MicroG-RE-7.1.1-universal.apk
-2. Open MicroG-RE and add your Google account if desired.
-3. Install YouTube-J7-Native-v0.2.1.apk
-4. Open YouTube.
-
-This build targets Samsung J7 Prime / Android 8 / armeabi-v7a.
-AVC/H.264 is enabled by default.
-Sponsor, self-promotion and interaction segments are set to auto-skip by default.
-EOF
+          printf '%s\n' \
+            'YT J7 Native v0.2.1' \
+            '' \
+            '1. Install MicroG-RE-7.1.1-universal.apk' \
+            '2. Open MicroG-RE and add your Google account if desired.' \
+            '3. Install YouTube-J7-Native-v0.2.1.apk' \
+            '4. Open YouTube.' \
+            '' \
+            'Target: Samsung J7 Prime / Android 8 / armeabi-v7a.' \
+            'AVC/H.264 is enabled by default.' \
+            'Sponsor, self-promotion and interaction segments auto-skip by default.' \
+            > dist/INSTALL.txt
 
       - name: Upload package
         uses: actions/upload-artifact@v4
