@@ -469,7 +469,7 @@ window.addEventListener('devicemotion',e=>{
   const y=clamp(-(a.y||0)*.025,-.65,.65);
   const z=clamp((a.z||0)*.018,-.45,.45);
   physics.sides.forEach((b,i)=>{
-    b.imp.x+=x*(i===0?.88:1);
+    b.imp.x+=x*(i===0 ? .88 : 1);
     b.imp.y+=y;
     b.imp.z+=z+Math.abs(x)*.16;
   });
@@ -498,14 +498,14 @@ document.querySelectorAll('.mode').forEach(btn=>btn.onclick=()=>{
 });
 $('bounce').onclick=()=>{
   physics.sides.forEach((b,i)=>{
-    b.vel.y+=i===0?.60:.66;b.vel.z+=.82;b.vel.x+=(i===0?-1:1)*.14;
+    b.vel.y+=i===0 ? .60 : .66;b.vel.z+=.82;b.vel.x+=(i===0?-1:1)*.14;
   });toast('BOUNCE!');
 };
 $('focus').onclick=()=>{
   cam.focus=!cam.focus;
   cam.targetY=cam.focus?1.32:1.14;
   cam.dist=cam.focus?1.62:2.55;
-  cam.pitch=cam.focus?.01:-.015;updateCamera();
+  cam.pitch=cam.focus ? .01 : -.015;updateCamera();
   $('focus').classList.toggle('active',cam.focus);
 };
 $('reset').onclick=()=>{
@@ -518,7 +518,7 @@ $('smile').onclick=()=>{
   if(vrm&&vrm.blendShapeProxy&&THREE.VRMSchema){
     const P=THREE.VRMSchema.BlendShapePresetName;
     const key=P.Fun||P.Joy||'fun';
-    try{vrm.blendShapeProxy.setValue(key,smileOn?.72:0);}catch(_){}
+    try{vrm.blendShapeProxy.setValue(key,smileOn ? .72 : 0);}catch(_){}
   }
 };
 $('collapse').onclick=()=>{
