@@ -26,13 +26,12 @@
       }
 
       variants++;
-      const m = /RESOLUTION=(\d+)x(\d+)/i.exec(line);
+      const m = /RESOLUTION\s*=\s*(\d+)\s*x\s*(\d+)/i.exec(line);
       let allow = true;
       if (m) {
         const w = Number(m[1]);
         const h = Number(m[2]);
-        const shortEdge = Math.min(w, h);
-        allow = shortEdge <= maxHeight;
+        allow = Math.min(w, h) <= maxHeight;
       }
 
       const next = i + 1 < lines.length ? lines[i + 1] : '';
@@ -56,11 +55,11 @@
     window.fetch = async function(input, init) {
       const response = await originalFetch.apply(this, arguments);
       try {
-        const url = typeof input === 'string' ? input : (input && input.url) || response.url || '';
-        if (!/\.m3u8(?:\?|$)/i.test(url)) return response;
+        const url = typeof input === 'string'
+          ? input
+          : (input && input.url) || response.url || '';
 
-        const type = (response.headers.get('content-type') || '').toLowerCase();
-        if (type && !type.includes('mpegurl') && !type.includes('m3u')) return response;
+        if (!/\.m3u8(?:\?|$)/i.test(url)) return response;
 
         const originalText = await response.clone().text();
         const capped = capM3u8(originalText);
@@ -68,6 +67,8 @@
 
         const headers = new Headers(response.headers);
         headers.delete('content-length');
+        headers.delete('content-encoding');
+
         return new Response(capped, {
           status: response.status,
           statusText: response.statusText,
@@ -77,5 +78,52 @@
         return response;
       }
     };
+  }
+
+  // Keep only nearby videos active. X already does this in most cases, this is a
+  // lightweight safeguard for old devices when several videos remain mounted.
+  const seenVideos = new WeakSet();
+  const videoObserver = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      const video = entry.target;
+      if (!entry.isIntersecting && !video.paused) {
+        try { video.pause(); } catch (_) {}
+      }
+    }
+  }, {rootMargin: '320px 0px 320px 0px'});
+
+  function registerVideos(root) {
+    if (!root || root.nodeType !== 1) return;
+    const list = [];
+    if (root.matches && root.matches('video')) list.push(root);
+    if (root.querySelectorAll) list.push(...root.querySelectorAll('video'));
+
+    for (const video of list) {
+      if (seenVideos.has(video)) continue;
+      seenVideos.add(video);
+      try {
+        video.preload = 'metadata';
+        video.setAttribute('playsinline', '');
+      } catch (_) {}
+      videoObserver.observe(video);
+    }
+  }
+
+  const start = () => {
+    registerVideos(document.documentElement);
+    const target = document.body || document.documentElement;
+    if (!target) return;
+
+    new MutationObserver(records => {
+      for (const record of records) {
+        for (const node of record.addedNodes) registerVideos(node);
+      }
+    }).observe(target, {childList: true, subtree: true});
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, {once: true});
+  } else {
+    start();
   }
 })();
