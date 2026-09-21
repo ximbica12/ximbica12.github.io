@@ -125,7 +125,7 @@ const config = {
   addAddMutedWordMenuItem: true,
   addFocusedTweetAccountLocation: false,
   alwaysUseLatestTweets: true,
-  bypassAgeVerification: true,
+  bypassAgeVerification: false,
   darkModeTheme: 'lightsOut',
   defaultToLatestSearch: false,
   disableHomeTimeline: false,
@@ -8252,6 +8252,11 @@ if ($settings) {
     configChanged(configChanges)
   })
   settingsChangeObserver.observe($settings, {childList: true})
+}
+
+if (window.__XLITE_CPFT_CONFIG__ && typeof window.__XLITE_CPFT_CONFIG__ == 'object') {
+  Object.assign(config, window.__XLITE_CPFT_CONFIG__)
+  config.bypassAgeVerification = false
 }
 
 debug = config.debug
