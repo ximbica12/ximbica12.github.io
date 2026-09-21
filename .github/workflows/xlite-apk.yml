@@ -48,11 +48,11 @@ jobs:
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
       - name: Rename APK
-        run: cp xlite-build/app/build/outputs/apk/debug/app-debug.apk XLite-for-X-Android8-ARMv7-debug.apk
+        run: cp xlite-build/app/build/outputs/apk/debug/app-debug.apk XLite-for-X-v0.3-Android8-ARMv7.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: XLite-for-X-Android8-ARMv7
-          path: XLite-for-X-Android8-ARMv7-debug.apk
+          name: XLite-for-X-v0.3-Android8-ARMv7
+          path: XLite-for-X-v0.3-Android8-ARMv7.apk
           if-no-files-found: error
