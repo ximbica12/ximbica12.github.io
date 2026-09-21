@@ -17,20 +17,22 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
-import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebStorage;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebChromeClient;
 import android.widget.Button;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
@@ -50,13 +52,16 @@ public class MainActivity extends Activity {
             "doubleclick.net",
             "google-analytics.com",
             "googletagmanager.com",
-            "scorecardresearch.com"
+            "scorecardresearch.com",
+            "googlesyndication.com",
+            "adservice.google.com"
     ));
 
     private WebView web;
     private ProgressBar progress;
     private SharedPreferences prefs;
     private String defaultUa;
+    private String cpftScript;
     private String pendingUrl;
     private String pendingUa;
     private String pendingDisposition;
@@ -109,14 +114,14 @@ public class MainActivity extends Activity {
         addButton(bar, "⋮", v -> showMenu());
 
         column.addView(bar, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(50)));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(48)));
         setContentView(column);
     }
 
     private void addButton(LinearLayout bar, String text, View.OnClickListener listener) {
         Button b = new Button(this);
         b.setText(text);
-        b.setTextSize(22);
+        b.setTextSize(21);
         b.setTextColor(Color.WHITE);
         b.setBackgroundColor(Color.TRANSPARENT);
         b.setAllCaps(false);
@@ -134,13 +139,21 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setSafeBrowsingEnabled(true);
+        s.setUseWideViewPort(true);
+        s.setLoadWithOverviewMode(true);
+        s.setSupportZoom(true);
+        s.setBuiltInZoomControls(true);
+        s.setDisplayZoomControls(false);
+        s.setTextZoom(100);
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
 
+        applyScale();
         defaultUa = s.getUserAgentString();
         applyUserAgent();
 
         CookieManager cm = CookieManager.getInstance();
         cm.setAcceptCookie(true);
-        cm.setAcceptThirdPartyCookies(web, true);
+        cm.setAcceptThirdPartyCookies(web, prefs.getBoolean("third_party_cookies", true));
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -167,8 +180,13 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onPageCommitVisible(WebView view, String url) {
+                injectEnhancements();
+            }
+
+            @Override
             public void onPageFinished(WebView view, String url) {
-                if (prefs.getBoolean("lite", true)) injectLite();
+                injectEnhancements();
             }
         });
 
@@ -202,6 +220,100 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void applyScale() {
+        int scale = prefs.getInt("j7_scale", 85);
+        web.setInitialScale(scale);
+    }
+
+    private void injectEnhancements() {
+        injectJ7Viewport();
+        if (prefs.getBoolean("lite", true)) injectLite();
+        if (prefs.getBoolean("cpft_enabled", true)) injectControlPanel();
+    }
+
+    private void injectJ7Viewport() {
+        int pct = prefs.getInt("j7_scale", 85);
+        double scale = pct / 100.0;
+        String js =
+                "(function(){" +
+                "var m=document.querySelector('meta[name=viewport]');" +
+                "if(!m){m=document.createElement('meta');m.name='viewport';document.head&&document.head.appendChild(m);}" +
+                "if(m)m.setAttribute('content','width=device-width,initial-scale=" + scale +
+                ",minimum-scale=0.65,maximum-scale=3,user-scalable=yes,viewport-fit=cover');" +
+                "})();";
+        web.evaluateJavascript(js, null);
+    }
+
+    private void injectLite() {
+        String js =
+                "(function(){" +
+                "if(document.getElementById('xlite-css'))return;" +
+                "var s=document.createElement('style');s.id='xlite-css';" +
+                "s.textContent='*,*::before,*::after{animation-duration:.001s!important;" +
+                "animation-iteration-count:1!important;transition-duration:.001s!important;" +
+                "scroll-behavior:auto!important} [style*=backdrop-filter]{backdrop-filter:none!important;" +
+                "-webkit-backdrop-filter:none!important}';" +
+                "document.documentElement.appendChild(s);" +
+                "})();";
+        web.evaluateJavascript(js, null);
+    }
+
+    private void injectControlPanel() {
+        if (cpftScript == null) cpftScript = readAsset("cpft-script.js");
+        if (cpftScript == null || cpftScript.length() == 0) return;
+
+        String config = controlPanelConfigJson();
+        String bootstrap =
+                "(function(){" +
+                "if(window.__XLITE_CPFT_INJECTED__)return;" +
+                "window.__XLITE_CPFT_INJECTED__=true;" +
+                "var old=document.getElementById('cpftSettings');if(old)old.remove();" +
+                "var s=document.createElement('script');s.type='text/json';s.id='cpftSettings';" +
+                "s.textContent=" + quoteJs(config) + ";" +
+                "document.documentElement.appendChild(s);" +
+                "})();";
+
+        web.evaluateJavascript(bootstrap, v -> web.evaluateJavascript(cpftScript, null));
+    }
+
+    private String controlPanelConfigJson() {
+        return "{" +
+                "\"enabled\":" + prefs.getBoolean("cpft_enabled", true) + "," +
+                "\"bypassAgeVerification\":false," +
+                "\"hideForYouTimeline\":" + prefs.getBoolean("cpft_hide_for_you", true) + "," +
+                "\"hideGrokNav\":" + prefs.getBoolean("cpft_hide_grok", true) + "," +
+                "\"hideWhoToFollowEtc\":" + prefs.getBoolean("cpft_hide_suggestions", true) + "," +
+                "\"hideWhatsHappening\":" + prefs.getBoolean("cpft_hide_whats_happening", true) + "," +
+                "\"hideTwitterBlueUpsells\":" + prefs.getBoolean("cpft_hide_upsells", true) + "," +
+                "\"alwaysUseLatestTweets\":" + prefs.getBoolean("cpft_latest", true) + "," +
+                "\"preventNextVideoAutoplay\":" + prefs.getBoolean("cpft_stop_next_video", true) + "," +
+                "\"hideViews\":" + prefs.getBoolean("cpft_hide_views", false) + "," +
+                "\"replaceLogo\":" + prefs.getBoolean("cpft_twitter_logo", false) +
+                "}";
+    }
+
+    private String quoteJs(String text) {
+        return "'" + text
+                .replace("\\", "\\\\")
+                .replace("'", "\\'")
+                .replace("\r", "\\r")
+                .replace("\n", "\\n") + "'";
+    }
+
+    private String readAsset(String name) {
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(
+                    getAssets().open(name), StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) sb.append(line).append('\n');
+            br.close();
+            return sb.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
     private void applyUserAgent() {
         String ua = defaultUa == null ? "" : defaultUa;
         if (prefs.getBoolean("compat", true)) {
@@ -228,66 +340,128 @@ public class MainActivity extends Activity {
                 || host.equals("twimg.com") || host.endsWith(".twimg.com");
     }
 
-    private void injectLite() {
-        String js =
-                "(function(){" +
-                "if(document.getElementById('xlite-css'))return;" +
-                "var s=document.createElement('style');s.id='xlite-css';" +
-                "s.textContent='*,*::before,*::after{animation-duration:.001s!important;" +
-                "animation-iteration-count:1!important;transition-duration:.001s!important;" +
-                "scroll-behavior:auto!important}';document.documentElement.appendChild(s);" +
-                "function c(){document.querySelectorAll('article').forEach(function(a){" +
-                "var t=a.innerText||'';" +
-                "if(/(^|\\n)(Promoted|Promovido|Patrocinado|Anúncio|Ad)(\\n|$)/i.test(t))" +
-                "a.style.display='none';});}" +
-                "c();new MutationObserver(c).observe(document.documentElement,{childList:true,subtree:true});" +
-                "})();";
-        web.evaluateJavascript(js, null);
-    }
-
     private void showMenu() {
         boolean ad = prefs.getBoolean("adblock", true);
         boolean lite = prefs.getBoolean("lite", true);
         boolean compat = prefs.getBoolean("compat", true);
+        boolean cpft = prefs.getBoolean("cpft_enabled", true);
+        int scale = prefs.getInt("j7_scale", 85);
 
         String[] items = {
                 mark(ad) + "AdBlock",
                 mark(lite) + "Modo leve",
                 mark(compat) + "Compatibilidade do X",
+                mark(cpft) + "Control Panel for Twitter 4.24.1",
+                "Escala J7: " + scale + "%",
+                "Opções do Control Panel",
                 "Reparar sessão/verificação",
                 "Reset total da sessão",
-                "Abrir no navegador externo"
+                "Abrir no navegador externo",
+                "Sobre"
         };
 
         new AlertDialog.Builder(this)
-                .setTitle("XLite for X")
+                .setTitle("XLite for X v0.3")
                 .setItems(items, (d, which) -> {
                     switch (which) {
                         case 0:
-                            toggle("adblock", true);
-                            web.reload();
-                            break;
+                            toggle("adblock", true); reloadClean(); break;
                         case 1:
-                            toggle("lite", true);
-                            web.reload();
-                            break;
+                            toggle("lite", true); reloadClean(); break;
                         case 2:
-                            toggle("compat", true);
-                            applyUserAgent();
-                            web.reload();
-                            break;
+                            toggle("compat", true); applyUserAgent(); reloadClean(); break;
                         case 3:
-                            repairSession(false);
-                            break;
+                            toggle("cpft_enabled", true); reloadClean(); break;
                         case 4:
-                            repairSession(true);
-                            break;
+                            showScaleDialog(); break;
                         case 5:
+                            showControlPanelMenu(); break;
+                        case 6:
+                            repairSession(false); break;
+                        case 7:
+                            repairSession(true); break;
+                        case 8:
                             if (web.getUrl() != null) openExternal(Uri.parse(web.getUrl()));
                             break;
+                        case 9:
+                            showAbout(); break;
                     }
                 })
                 .show();
+    }
+
+    private void showScaleDialog() {
+        final int[] values = {75, 80, 85, 90, 100};
+        String[] labels = {"75% — mais conteúdo", "80%", "85% — recomendado J7",
+                "90%", "100% — tamanho normal"};
+        int current = prefs.getInt("j7_scale", 85);
+        int checked = 2;
+        for (int i = 0; i < values.length; i++) if (values[i] == current) checked = i;
+
+        new AlertDialog.Builder(this)
+                .setTitle("Escala de interface")
+                .setSingleChoiceItems(labels, checked, (d, which) -> {
+                    prefs.edit().putInt("j7_scale", values[which]).apply();
+                    applyScale();
+                    d.dismiss();
+                    reloadClean();
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private void showControlPanelMenu() {
+        final String[] keys = {
+                "cpft_hide_for_you",
+                "cpft_hide_grok",
+                "cpft_hide_suggestions",
+                "cpft_hide_whats_happening",
+                "cpft_hide_upsells",
+                "cpft_latest",
+                "cpft_stop_next_video",
+                "cpft_hide_views",
+                "cpft_twitter_logo"
+        };
+        String[] labels = {
+                "Ocultar aba Para você",
+                "Ocultar Grok",
+                "Ocultar sugestões / Quem seguir",
+                "Ocultar O que está acontecendo",
+                "Ocultar upsells do Premium",
+                "Usar timeline mais recente",
+                "Impedir próximo vídeo automático",
+                "Ocultar contagem de visualizações",
+                "Restaurar pássaro do Twitter"
+        };
+        boolean[] defaults = {true, true, true, true, true, true, true, false, false};
+        boolean[] checked = new boolean[keys.length];
+        for (int i = 0; i < keys.length; i++) {
+            checked[i] = prefs.getBoolean(keys[i], defaults[i]);
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Control Panel for Twitter")
+                .setMultiChoiceItems(labels, checked, (d, which, isChecked) ->
+                        prefs.edit().putBoolean(keys[which], isChecked).apply())
+                .setPositiveButton("Aplicar", (d, w) -> reloadClean())
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private void showAbout() {
+        new AlertDialog.Builder(this)
+                .setTitle("XLite for X v0.3")
+                .setMessage("Android 8+ • J7 compact mode\n\n" +
+                        "Control Panel for Twitter 4.24.1 integrado a partir do projeto " +
+                        "de Jonny Buchanan / soitis.dev, licença MIT.\n\n" +
+                        "A opção upstream de contornar verificação etária é mantida desativada.")
+                .setPositiveButton("OK", null)
+                .show();
+    }
+
+    private void reloadClean() {
+        web.evaluateJavascript("window.__XLITE_CPFT_INJECTED__=false;", null);
+        web.reload();
     }
 
     private void repairSession(boolean full) {
@@ -304,7 +478,7 @@ public class MainActivity extends Activity {
 
         new AlertDialog.Builder(this)
                 .setTitle("Reset total")
-                .setMessage("Isto apaga os cookies deste app e exige novo login. Não falsifica nem ignora a idade exigida pelo X.")
+                .setMessage("Apaga cookies deste app e exige novo login. Não altera a idade da conta nem ignora verificações do X.")
                 .setPositiveButton("Resetar", (d, w) -> {
                     WebStorage.getInstance().deleteAllData();
                     web.clearCache(true);
