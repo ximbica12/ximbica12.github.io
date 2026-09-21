@@ -18,19 +18,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install Android platform
-        run: yes | sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
@@ -54,8 +55,11 @@ jobs:
           import time
           from pathlib import Path
 
+          now = int(time.time() * 1000)
+          apk_size = Path("dist/sai/base.apk").stat().st_size
+
           meta_v1 = {
-              "export_timestamp": int(time.time() * 1000),
+              "export_timestamp": now,
               "label": "X Lite",
               "package": "com.ximbica.xlite",
               "version_code": 1,
@@ -64,12 +68,9 @@ jobs:
 
           meta_v2 = {
               "backup_components": [
-                  {
-                      "size": Path("dist/sai/base.apk").stat().st_size,
-                      "type": "apk_files"
-                  }
+                  {"size": apk_size, "type": "apk_files"}
               ],
-              "export_timestamp": int(time.time() * 1000),
+              "export_timestamp": now,
               "split_apk": False,
               "label": "X Lite",
               "meta_version": 2,
