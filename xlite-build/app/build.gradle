@@ -11,11 +11,11 @@ android {
     }
 
     defaultConfig {
-        applicationId 'com.xlite.browser.debug'
+        applicationId 'com.xlite.gecko'
         minSdk 26
         targetSdk 35
-        versionCode 6
-        versionName '0.5.0'
+        versionCode 1
+        versionName '0.6.0'
     }
 
     buildTypes {
