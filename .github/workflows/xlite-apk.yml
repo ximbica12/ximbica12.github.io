@@ -1,4 +1,4 @@
-name: Build XLite APK
+name: Build XLite v0.4 Unsigned
 
 on:
   push:
@@ -43,16 +43,20 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build debug APK
+      - name: Build release unsigned
         working-directory: xlite-build
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
+        run: gradle --no-daemon --stacktrace :app:assembleRelease
 
-      - name: Rename APK
-        run: cp xlite-build/app/build/outputs/apk/debug/app-debug.apk XLite-for-X-v0.3-Android8-ARMv7.apk
+      - name: Zipalign unsigned APK
+        run: |
+          IN="xlite-build/app/build/outputs/apk/release/app-release-unsigned.apk"
+          OUT="XLite-for-X-v0.4-Android8-ARMv7-unsigned-aligned.apk"
+          "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign" -f -p 4 "$IN" "$OUT"
+          "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign" -c -v 4 "$OUT"
 
-      - name: Upload APK
+      - name: Upload unsigned APK
         uses: actions/upload-artifact@v4
         with:
-          name: XLite-for-X-v0.3-Android8-ARMv7
-          path: XLite-for-X-v0.3-Android8-ARMv7.apk
+          name: XLite-for-X-v0.4-unsigned
+          path: XLite-for-X-v0.4-Android8-ARMv7-unsigned-aligned.apk
           if-no-files-found: error
