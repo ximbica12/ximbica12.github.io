@@ -7,41 +7,57 @@ import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
-import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
+import android.webkit.RenderProcessGoneDetail;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebStorage;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.webkit.WebChromeClient;
-import android.widget.Button;
-import android.widget.LinearLayout;
-import android.widget.ProgressBar;
+import android.widget.FrameLayout;
 import android.widget.Toast;
+
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+
+import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainActivity extends Activity {
     private static final String HOME = "https://x.com/home";
     private static final String LOGIN = "https://x.com/i/flow/login";
     private static final int STORAGE_PERMISSION = 42;
+    private static final int FILE_CHOOSER = 43;
 
     private final Set<String> blocked = new HashSet<>(Arrays.asList(
             "ads-twitter.com",
@@ -52,16 +68,26 @@ public class MainActivity extends Activity {
             "doubleclick.net",
             "google-analytics.com",
             "googletagmanager.com",
-            "scorecardresearch.com",
             "googlesyndication.com",
-            "adservice.google.com"
+            "adservice.google.com",
+            "scorecardresearch.com"
     ));
 
+    private FrameLayout root;
     private WebView web;
-    private ProgressBar progress;
     private SharedPreferences prefs;
     private String defaultUa;
     private String cpftScript;
+    private String pageScript;
+    private String cpftSnapshot;
+    private boolean documentStartInstalled;
+    private boolean resumedOnce;
+    private boolean backLongPressed;
+
+    private ValueCallback<Uri[]> fileCallback;
+    private View customView;
+    private WebChromeClient.CustomViewCallback customViewCallback;
+
     private String pendingUrl;
     private String pendingUa;
     private String pendingDisposition;
@@ -74,60 +100,33 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(Color.BLACK);
 
         prefs = getSharedPreferences("xlite", MODE_PRIVATE);
-        buildUi();
+        cpftSnapshot = prefs.getString("cpft_config_json", "{}");
+
+        root = new FrameLayout(this);
+        root.setBackgroundColor(Color.BLACK);
+        web = new WebView(this);
+        web.setBackgroundColor(Color.BLACK);
+        root.addView(web, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
+
         configureWebView();
+        installDocumentStartScripts();
 
         if (state != null) {
             web.restoreState(state);
         } else {
             String incoming = getIntent() != null ? getIntent().getDataString() : null;
-            web.loadUrl(isHttp(incoming) ? incoming : HOME);
+            loadUrl(isHttp(incoming) ? incoming : HOME);
         }
-    }
 
-    private void buildUi() {
-        LinearLayout column = new LinearLayout(this);
-        column.setOrientation(LinearLayout.VERTICAL);
-        column.setBackgroundColor(Color.BLACK);
-
-        progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        progress.setMax(100);
-        progress.setVisibility(View.GONE);
-        column.addView(progress, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(2)));
-
-        web = new WebView(this);
-        web.setBackgroundColor(Color.BLACK);
-        column.addView(web, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-
-        LinearLayout bar = new LinearLayout(this);
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(Gravity.CENTER);
-        bar.setBackgroundColor(Color.rgb(8, 8, 8));
-
-        addButton(bar, "‹", v -> {
-            if (web.canGoBack()) web.goBack();
-        });
-        addButton(bar, "⌂", v -> web.loadUrl(HOME));
-        addButton(bar, "↻", v -> web.reload());
-        addButton(bar, "⋮", v -> showMenu());
-
-        column.addView(bar, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(48)));
-        setContentView(column);
-    }
-
-    private void addButton(LinearLayout bar, String text, View.OnClickListener listener) {
-        Button b = new Button(this);
-        b.setText(text);
-        b.setTextSize(21);
-        b.setTextColor(Color.WHITE);
-        b.setBackgroundColor(Color.TRANSPARENT);
-        b.setAllCaps(false);
-        b.setOnClickListener(listener);
-        bar.addView(b, new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+        if (!prefs.getBoolean("v4_hint_shown", false)) {
+            prefs.edit().putBoolean("v4_hint_shown", true).apply();
+            Toast.makeText(this,
+                    "XLite v0.4: segure o botão Voltar para abrir as opções",
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     private void configureWebView() {
@@ -146,23 +145,42 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setTextZoom(100);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        s.setOffscreenPreRaster(false);
+        s.setJavaScriptCanOpenWindowsAutomatically(false);
+        s.setSupportMultipleWindows(false);
 
         applyScale();
+
         defaultUa = s.getUserAgentString();
         applyUserAgent();
 
         CookieManager cm = CookieManager.getInstance();
         cm.setAcceptCookie(true);
-        cm.setAcceptThirdPartyCookies(web, prefs.getBoolean("third_party_cookies", true));
+        cm.setAcceptThirdPartyCookies(web, true);
+        if (prefs.getBoolean("auto_translate", true)) {
+            cm.setCookie("https://x.com", "lang=pt; Path=/; Secure");
+            cm.setCookie("https://twitter.com", "lang=pt; Path=/; Secure");
+            cm.flush();
+        }
 
         web.setWebViewClient(new WebViewClient() {
             @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                if (!documentStartInstalled) injectFallbackScripts();
+            }
+
+            @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
-                if (prefs.getBoolean("adblock", true) && isBlocked(req.getUrl())) {
-                    return new WebResourceResponse(
-                            "text/plain", "UTF-8",
-                            new ByteArrayInputStream(new byte[0]));
+                Uri uri = req.getUrl();
+                if (prefs.getBoolean("adblock", true) && isBlocked(uri)) {
+                    return emptyResponse();
                 }
+
+                if (isVideoManifest(uri)) {
+                    WebResourceResponse capped = interceptAndCapHls(req);
+                    if (capped != null) return capped;
+                }
+
                 return super.shouldInterceptRequest(view, req);
             }
 
@@ -180,21 +198,63 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void onPageCommitVisible(WebView view, String url) {
-                injectEnhancements();
-            }
-
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                injectEnhancements();
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                Toast.makeText(MainActivity.this,
+                        "WebView reiniciado para recuperar memória",
+                        Toast.LENGTH_SHORT).show();
+                root.removeView(web);
+                web.destroy();
+                recreate();
+                return true;
             }
         });
 
         web.setWebChromeClient(new WebChromeClient() {
             @Override
-            public void onProgressChanged(WebView view, int n) {
-                progress.setProgress(n);
-                progress.setVisibility(n >= 100 ? View.GONE : View.VISIBLE);
+            public boolean onShowFileChooser(WebView webView,
+                                             ValueCallback<Uri[]> callback,
+                                             FileChooserParams params) {
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = callback;
+                Intent intent;
+                try {
+                    intent = params.createIntent();
+                } catch (Exception e) {
+                    intent = new Intent(Intent.ACTION_GET_CONTENT);
+                    intent.setType("*/*");
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                }
+
+                try {
+                    startActivityForResult(intent, FILE_CHOOSER);
+                    return true;
+                } catch (Exception e) {
+                    fileCallback = null;
+                    Toast.makeText(MainActivity.this,
+                            "Não foi possível abrir o seletor de arquivos",
+                            Toast.LENGTH_SHORT).show();
+                    return false;
+                }
+            }
+
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback callback) {
+                if (customView != null) {
+                    callback.onCustomViewHidden();
+                    return;
+                }
+                customView = view;
+                customViewCallback = callback;
+                root.addView(view, new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT));
+                view.bringToFront();
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            }
+
+            @Override
+            public void onHideCustomView() {
+                hideCustomView();
             }
         });
 
@@ -207,6 +267,7 @@ public class MainActivity extends Activity {
                 pendingUa = userAgent;
                 pendingDisposition = contentDisposition;
                 pendingMime = mimeType;
+
                 if (android.os.Build.VERSION.SDK_INT <= 28 &&
                         checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                                 != PackageManager.PERMISSION_GRANTED) {
@@ -220,106 +281,112 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void installDocumentStartScripts() {
+        cpftScript = readAsset("cpft-script.js");
+        pageScript = readAsset("xlite-page.js");
+
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            documentStartInstalled = false;
+            return;
+        }
+
+        try {
+            Set<String> origins = new HashSet<>(Arrays.asList(
+                    "https://x.com",
+                    "https://*.x.com",
+                    "https://twitter.com",
+                    "https://*.twitter.com"
+            ));
+
+            String bootstrap = buildBootstrapScript();
+            WebViewCompat.addDocumentStartJavaScript(web, bootstrap, origins);
+
+            if (prefs.getBoolean("cpft_enabled", true) && cpftScript != null && !cpftScript.isEmpty()) {
+                WebViewCompat.addDocumentStartJavaScript(
+                        web,
+                        "if(!window.__XLITE_CPFT_LOADED__){window.__XLITE_CPFT_LOADED__=true;" +
+                                cpftScript + "}",
+                        origins);
+            }
+
+            if (pageScript != null && !pageScript.isEmpty()) {
+                WebViewCompat.addDocumentStartJavaScript(
+                        web,
+                        "if(!window.__XLITE_PAGE_LOADED__){window.__XLITE_PAGE_LOADED__=true;" +
+                                pageScript + "}",
+                        origins);
+            }
+
+            documentStartInstalled = true;
+        } catch (Exception e) {
+            documentStartInstalled = false;
+        }
+    }
+
+    private String buildBootstrapScript() {
+        String cpft = prefs.getString("cpft_config_json", "{}");
+        if (cpft == null || cpft.trim().isEmpty()) cpft = "{}";
+
+        try {
+            JSONObject obj = new JSONObject(cpft);
+            obj.put("bypassAgeVerification", false);
+            if (!prefs.getBoolean("cpft_enabled", true)) obj.put("enabled", false);
+            cpft = obj.toString();
+        } catch (Exception e) {
+            cpft = "{\"enabled\":" + prefs.getBoolean("cpft_enabled", true) +
+                    ",\"bypassAgeVerification\":false}";
+        }
+
+        boolean translate = prefs.getBoolean("auto_translate", true);
+        boolean lite = prefs.getBoolean("lite", true);
+
+        return "window.__XLITE_CPFT_CONFIG__=" + cpft + ";" +
+                "window.__XLITE={autoTranslate:" + translate + ",lite:" + lite + "};";
+    }
+
+    private void injectFallbackScripts() {
+        StringBuilder js = new StringBuilder();
+        js.append(buildBootstrapScript());
+
+        if (prefs.getBoolean("cpft_enabled", true) && cpftScript != null && !cpftScript.isEmpty()) {
+            js.append("if(!window.__XLITE_CPFT_LOADED__){window.__XLITE_CPFT_LOADED__=true;")
+                    .append(cpftScript)
+                    .append("}");
+        }
+
+        if (pageScript != null && !pageScript.isEmpty()) {
+            js.append("if(!window.__XLITE_PAGE_LOADED__){window.__XLITE_PAGE_LOADED__=true;")
+                    .append(pageScript)
+                    .append("}");
+        }
+
+        web.evaluateJavascript(js.toString(), null);
+    }
+
     private void applyScale() {
         int scale = prefs.getInt("j7_scale", 85);
         web.setInitialScale(scale);
     }
 
-    private void injectEnhancements() {
-        injectJ7Viewport();
-        if (prefs.getBoolean("lite", true)) injectLite();
-        if (prefs.getBoolean("cpft_enabled", true)) injectControlPanel();
-    }
-
-    private void injectJ7Viewport() {
-        int pct = prefs.getInt("j7_scale", 85);
-        double scale = pct / 100.0;
-        String js =
-                "(function(){" +
-                "var m=document.querySelector('meta[name=viewport]');" +
-                "if(!m){m=document.createElement('meta');m.name='viewport';document.head&&document.head.appendChild(m);}" +
-                "if(m)m.setAttribute('content','width=device-width,initial-scale=" + scale +
-                ",minimum-scale=0.65,maximum-scale=3,user-scalable=yes,viewport-fit=cover');" +
-                "})();";
-        web.evaluateJavascript(js, null);
-    }
-
-    private void injectLite() {
-        String js =
-                "(function(){" +
-                "if(document.getElementById('xlite-css'))return;" +
-                "var s=document.createElement('style');s.id='xlite-css';" +
-                "s.textContent='*,*::before,*::after{animation-duration:.001s!important;" +
-                "animation-iteration-count:1!important;transition-duration:.001s!important;" +
-                "scroll-behavior:auto!important} [style*=backdrop-filter]{backdrop-filter:none!important;" +
-                "-webkit-backdrop-filter:none!important}';" +
-                "document.documentElement.appendChild(s);" +
-                "})();";
-        web.evaluateJavascript(js, null);
-    }
-
-    private void injectControlPanel() {
-        if (cpftScript == null) cpftScript = readAsset("cpft-script.js");
-        if (cpftScript == null || cpftScript.length() == 0) return;
-
-        String config = controlPanelConfigJson();
-        String bootstrap =
-                "(function(){" +
-                "if(window.__XLITE_CPFT_INJECTED__)return;" +
-                "window.__XLITE_CPFT_INJECTED__=true;" +
-                "var old=document.getElementById('cpftSettings');if(old)old.remove();" +
-                "var s=document.createElement('script');s.type='text/json';s.id='cpftSettings';" +
-                "s.textContent=" + quoteJs(config) + ";" +
-                "document.documentElement.appendChild(s);" +
-                "})();";
-
-        web.evaluateJavascript(bootstrap, v -> web.evaluateJavascript(cpftScript, null));
-    }
-
-    private String controlPanelConfigJson() {
-        return "{" +
-                "\"enabled\":" + prefs.getBoolean("cpft_enabled", true) + "," +
-                "\"bypassAgeVerification\":false," +
-                "\"hideForYouTimeline\":" + prefs.getBoolean("cpft_hide_for_you", true) + "," +
-                "\"hideGrokNav\":" + prefs.getBoolean("cpft_hide_grok", true) + "," +
-                "\"hideWhoToFollowEtc\":" + prefs.getBoolean("cpft_hide_suggestions", true) + "," +
-                "\"hideWhatsHappening\":" + prefs.getBoolean("cpft_hide_whats_happening", true) + "," +
-                "\"hideTwitterBlueUpsells\":" + prefs.getBoolean("cpft_hide_upsells", true) + "," +
-                "\"alwaysUseLatestTweets\":" + prefs.getBoolean("cpft_latest", true) + "," +
-                "\"preventNextVideoAutoplay\":" + prefs.getBoolean("cpft_stop_next_video", true) + "," +
-                "\"hideViews\":" + prefs.getBoolean("cpft_hide_views", false) + "," +
-                "\"replaceLogo\":" + prefs.getBoolean("cpft_twitter_logo", false) +
-                "}";
-    }
-
-    private String quoteJs(String text) {
-        return "'" + text
-                .replace("\\", "\\\\")
-                .replace("'", "\\'")
-                .replace("\r", "\\r")
-                .replace("\n", "\\n") + "'";
-    }
-
-    private String readAsset(String name) {
-        try {
-            BufferedReader br = new BufferedReader(new InputStreamReader(
-                    getAssets().open(name), StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) sb.append(line).append('\n');
-            br.close();
-            return sb.toString();
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
     private void applyUserAgent() {
         String ua = defaultUa == null ? "" : defaultUa;
-        if (prefs.getBoolean("compat", true)) {
-            ua = ua.replace("; wv", "").replace("Version/4.0 ", "");
-        }
+        ua = ua.replace("; wv", "").replace("Version/4.0 ", "");
         web.getSettings().setUserAgentString(ua);
+    }
+
+    private void loadUrl(String url) {
+        Map<String, String> headers = new HashMap<>();
+        if (prefs.getBoolean("auto_translate", true)) {
+            headers.put("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.7");
+        }
+        web.loadUrl(url, headers);
+    }
+
+    private WebResourceResponse emptyResponse() {
+        return new WebResourceResponse(
+                "text/plain",
+                "UTF-8",
+                new ByteArrayInputStream(new byte[0]));
     }
 
     private boolean isBlocked(Uri uri) {
@@ -340,51 +407,215 @@ public class MainActivity extends Activity {
                 || host.equals("twimg.com") || host.endsWith(".twimg.com");
     }
 
+    private boolean isVideoManifest(Uri uri) {
+        if (uri == null || uri.getHost() == null || uri.getPath() == null) return false;
+        String host = uri.getHost().toLowerCase(Locale.US);
+        String path = uri.getPath().toLowerCase(Locale.US);
+        return host.endsWith("twimg.com") && path.contains(".m3u8");
+    }
+
+    private WebResourceResponse interceptAndCapHls(WebResourceRequest req) {
+        HttpURLConnection con = null;
+        try {
+            URL url = new URL(req.getUrl().toString());
+            con = (HttpURLConnection) url.openConnection();
+            con.setInstanceFollowRedirects(true);
+            con.setConnectTimeout(8000);
+            con.setReadTimeout(10000);
+
+            for (Map.Entry<String, String> h : req.getRequestHeaders().entrySet()) {
+                if (h.getKey() == null) continue;
+                if ("accept-encoding".equalsIgnoreCase(h.getKey())) continue;
+                con.setRequestProperty(h.getKey(), h.getValue());
+            }
+
+            String cookie = CookieManager.getInstance().getCookie(req.getUrl().toString());
+            if (cookie != null && !cookie.isEmpty()) {
+                con.setRequestProperty("Cookie", cookie);
+            }
+            con.setRequestProperty("User-Agent", web.getSettings().getUserAgentString());
+
+            int code = con.getResponseCode();
+            if (code < 200 || code >= 300) return null;
+
+            String body = readText(con.getInputStream());
+            int max = prefs.getInt("video_max_height", 720);
+            String capped = capHlsPlaylist(body, max);
+
+            byte[] bytes = capped.getBytes(StandardCharsets.UTF_8);
+            String mime = con.getContentType();
+            if (mime == null || mime.isEmpty()) mime = "application/vnd.apple.mpegurl";
+            int semicolon = mime.indexOf(';');
+            if (semicolon > 0) mime = mime.substring(0, semicolon);
+
+            WebResourceResponse response = new WebResourceResponse(
+                    mime,
+                    "UTF-8",
+                    new ByteArrayInputStream(bytes));
+
+            Map<String, String> headers = new HashMap<>();
+            for (Map.Entry<String, List<String>> e : con.getHeaderFields().entrySet()) {
+                if (e.getKey() == null || e.getValue() == null || e.getValue().isEmpty()) continue;
+                String key = e.getKey();
+                if ("content-length".equalsIgnoreCase(key)
+                        || "content-encoding".equalsIgnoreCase(key)) continue;
+                headers.put(key, join(e.getValue(), ", "));
+            }
+            headers.put("Content-Length", String.valueOf(bytes.length));
+            response.setResponseHeaders(headers);
+            response.setStatusCodeAndReasonPhrase(200, "OK");
+            return response;
+        } catch (Exception ignored) {
+            return null;
+        } finally {
+            if (con != null) con.disconnect();
+        }
+    }
+
+    private String capHlsPlaylist(String body, int maxQuality) {
+        if (body == null || !body.contains("#EXT-X-STREAM-INF")) return body;
+
+        String[] lines = body.replace("\r\n", "\n").split("\n");
+        StringBuilder out = new StringBuilder();
+        int totalVariants = 0;
+        int keptVariants = 0;
+
+        Pattern resolution = Pattern.compile("RESOLUTION=(\\d+)x(\\d+)", Pattern.CASE_INSENSITIVE);
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+
+            if (line.startsWith("#EXT-X-STREAM-INF")) {
+                totalVariants++;
+                boolean keep = true;
+
+                Matcher m = resolution.matcher(line);
+                if (m.find()) {
+                    int w = Integer.parseInt(m.group(1));
+                    int h = Integer.parseInt(m.group(2));
+                    int tier = Math.min(w, h);
+                    if (tier > maxQuality) keep = false;
+                }
+
+                String next = i + 1 < lines.length ? lines[i + 1] : "";
+                if (keep) {
+                    keptVariants++;
+                    out.append(line).append('\n');
+                    if (i + 1 < lines.length) {
+                        out.append(next).append('\n');
+                        i++;
+                    }
+                } else if (i + 1 < lines.length && !next.startsWith("#")) {
+                    i++;
+                }
+                continue;
+            }
+
+            out.append(line).append('\n');
+        }
+
+        if (totalVariants > 0 && keptVariants == 0) return body;
+        return out.toString();
+    }
+
+    private String readText(InputStream in) throws Exception {
+        BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        char[] buf = new char[8192];
+        int n;
+        while ((n = br.read(buf)) >= 0) sb.append(buf, 0, n);
+        br.close();
+        return sb.toString();
+    }
+
+    private String join(List<String> values, String sep) {
+        StringBuilder sb = new StringBuilder();
+        for (String v : values) {
+            if (sb.length() > 0) sb.append(sep);
+            sb.append(v);
+        }
+        return sb.toString();
+    }
+
+    private String readAsset(String name) {
+        try {
+            return readText(getAssets().open(name));
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
     private void showMenu() {
         boolean ad = prefs.getBoolean("adblock", true);
         boolean lite = prefs.getBoolean("lite", true);
-        boolean compat = prefs.getBoolean("compat", true);
+        boolean translate = prefs.getBoolean("auto_translate", true);
         boolean cpft = prefs.getBoolean("cpft_enabled", true);
         int scale = prefs.getInt("j7_scale", 85);
+        int video = prefs.getInt("video_max_height", 720);
 
         String[] items = {
-                mark(ad) + "AdBlock",
-                mark(lite) + "Modo leve",
-                mark(compat) + "Compatibilidade do X",
-                mark(cpft) + "Control Panel for Twitter 4.24.1",
+                "⌂  Início",
+                "↻  Recarregar",
                 "Escala J7: " + scale + "%",
-                "Opções do Control Panel",
-                "Reparar sessão/verificação",
+                mark(translate) + "Tradução automática",
+                "Vídeo máximo: " + video + "p",
+                mark(cpft) + "Control Panel completo",
+                "⚙  Opções completas do Control Panel",
+                mark(ad) + "AdBlock",
+                mark(lite) + "Modo leve / menos animações",
+                "Reparar sessão do X",
                 "Reset total da sessão",
-                "Abrir no navegador externo",
-                "Sobre"
+                "Abrir página no navegador externo",
+                "Sobre / WebView"
         };
 
         new AlertDialog.Builder(this)
-                .setTitle("XLite for X v0.3")
+                .setTitle("XLite for X v0.4")
                 .setItems(items, (d, which) -> {
                     switch (which) {
                         case 0:
-                            toggle("adblock", true); reloadClean(); break;
+                            loadUrl(HOME);
+                            break;
                         case 1:
-                            toggle("lite", true); reloadClean(); break;
+                            web.reload();
+                            break;
                         case 2:
-                            toggle("compat", true); applyUserAgent(); reloadClean(); break;
+                            showScaleDialog();
+                            break;
                         case 3:
-                            toggle("cpft_enabled", true); reloadClean(); break;
+                            prefs.edit().putBoolean("auto_translate", !translate).apply();
+                            recreate();
+                            break;
                         case 4:
-                            showScaleDialog(); break;
+                            showVideoQualityDialog();
+                            break;
                         case 5:
-                            showControlPanelMenu(); break;
+                            prefs.edit().putBoolean("cpft_enabled", !cpft).apply();
+                            recreate();
+                            break;
                         case 6:
-                            repairSession(false); break;
+                            startActivity(new Intent(this, SettingsActivity.class));
+                            break;
                         case 7:
-                            repairSession(true); break;
+                            prefs.edit().putBoolean("adblock", !ad).apply();
+                            web.reload();
+                            break;
                         case 8:
-                            if (web.getUrl() != null) openExternal(Uri.parse(web.getUrl()));
+                            prefs.edit().putBoolean("lite", !lite).apply();
+                            recreate();
                             break;
                         case 9:
-                            showAbout(); break;
+                            repairSession(false);
+                            break;
+                        case 10:
+                            repairSession(true);
+                            break;
+                        case 11:
+                            if (web.getUrl() != null) openExternal(Uri.parse(web.getUrl()));
+                            break;
+                        case 12:
+                            showAbout();
+                            break;
                     }
                 })
                 .show();
@@ -392,100 +623,89 @@ public class MainActivity extends Activity {
 
     private void showScaleDialog() {
         final int[] values = {75, 80, 85, 90, 100};
-        String[] labels = {"75% — mais conteúdo", "80%", "85% — recomendado J7",
-                "90%", "100% — tamanho normal"};
+        String[] labels = {
+                "75% — máximo conteúdo",
+                "80% — compacto",
+                "85% — recomendado J7",
+                "90%",
+                "100% — normal"
+        };
         int current = prefs.getInt("j7_scale", 85);
         int checked = 2;
         for (int i = 0; i < values.length; i++) if (values[i] == current) checked = i;
 
         new AlertDialog.Builder(this)
-                .setTitle("Escala de interface")
+                .setTitle("Escala da página")
                 .setSingleChoiceItems(labels, checked, (d, which) -> {
                     prefs.edit().putInt("j7_scale", values[which]).apply();
-                    applyScale();
                     d.dismiss();
-                    reloadClean();
+                    recreate();
                 })
                 .setNegativeButton("Cancelar", null)
                 .show();
     }
 
-    private void showControlPanelMenu() {
-        final String[] keys = {
-                "cpft_hide_for_you",
-                "cpft_hide_grok",
-                "cpft_hide_suggestions",
-                "cpft_hide_whats_happening",
-                "cpft_hide_upsells",
-                "cpft_latest",
-                "cpft_stop_next_video",
-                "cpft_hide_views",
-                "cpft_twitter_logo"
-        };
+    private void showVideoQualityDialog() {
+        int current = prefs.getInt("video_max_height", 720);
         String[] labels = {
-                "Ocultar aba Para você",
-                "Ocultar Grok",
-                "Ocultar sugestões / Quem seguir",
-                "Ocultar O que está acontecendo",
-                "Ocultar upsells do Premium",
-                "Usar timeline mais recente",
-                "Impedir próximo vídeo automático",
-                "Ocultar contagem de visualizações",
-                "Restaurar pássaro do Twitter"
+                "720p — recomendado para J7",
+                "1080p — máximo",
         };
-        boolean[] defaults = {true, true, true, true, true, true, true, false, false};
-        boolean[] checked = new boolean[keys.length];
-        for (int i = 0; i < keys.length; i++) {
-            checked[i] = prefs.getBoolean(keys[i], defaults[i]);
-        }
 
         new AlertDialog.Builder(this)
-                .setTitle("Control Panel for Twitter")
-                .setMultiChoiceItems(labels, checked, (d, which, isChecked) ->
-                        prefs.edit().putBoolean(keys[which], isChecked).apply())
-                .setPositiveButton("Aplicar", (d, w) -> reloadClean())
+                .setTitle("Qualidade máxima de vídeo")
+                .setSingleChoiceItems(labels, current == 1080 ? 1 : 0, (d, which) -> {
+                    prefs.edit().putInt("video_max_height", which == 1 ? 1080 : 720).apply();
+                    d.dismiss();
+                    web.reload();
+                })
                 .setNegativeButton("Cancelar", null)
                 .show();
     }
 
     private void showAbout() {
+        String webViewInfo = "desconhecido";
+        try {
+            PackageInfo p = WebViewCompat.getCurrentWebViewPackage(this);
+            if (p != null) webViewInfo = p.packageName + " " + p.versionName;
+        } catch (Exception ignored) {
+        }
+
         new AlertDialog.Builder(this)
-                .setTitle("XLite for X v0.3")
-                .setMessage("Android 8+ • J7 compact mode\n\n" +
-                        "Control Panel for Twitter 4.24.1 integrado a partir do projeto " +
-                        "de Jonny Buchanan / soitis.dev, licença MIT.\n\n" +
-                        "A opção upstream de contornar verificação etária é mantida desativada.")
+                .setTitle("XLite for X v0.4")
+                .setMessage(
+                        "Android 8+ • pacote com assinatura fixa a partir da v0.4\n\n" +
+                        "Segure Voltar para abrir este menu.\n\n" +
+                        "Control Panel for Twitter 4.24.1 completo integrado com injeção no início do documento quando o WebView suporta.\n\n" +
+                        "Tradução automática usa o controle nativo de tradução do X.\n\n" +
+                        "Vídeo: playlists HLS são filtradas para não anunciar variantes acima do limite escolhido.\n\n" +
+                        "WebView: " + webViewInfo)
                 .setPositiveButton("OK", null)
                 .show();
     }
 
-    private void reloadClean() {
-        web.evaluateJavascript("window.__XLITE_CPFT_INJECTED__=false;", null);
-        web.reload();
-    }
-
     private void repairSession(boolean full) {
         if (!full) {
-            prefs.edit().putBoolean("compat", true).apply();
-            applyUserAgent();
             web.clearCache(true);
-            String js = "(function(){try{localStorage.clear();sessionStorage.clear();}catch(e){}" +
-                    "setTimeout(function(){location.reload();},200);})();";
-            web.evaluateJavascript(js, null);
-            toast("Estado local reiniciado");
+            web.evaluateJavascript(
+                    "(function(){try{localStorage.clear();sessionStorage.clear();}catch(e){}" +
+                            "setTimeout(function(){location.reload();},200);})();",
+                    null);
+            Toast.makeText(this, "Estado local do X reiniciado", Toast.LENGTH_SHORT).show();
             return;
         }
 
         new AlertDialog.Builder(this)
                 .setTitle("Reset total")
-                .setMessage("Apaga cookies deste app e exige novo login. Não altera a idade da conta nem ignora verificações do X.")
+                .setMessage("Apaga cookies, armazenamento local e login deste app. " +
+                        "Não altera a idade da conta nem ignora verificações do X.")
                 .setPositiveButton("Resetar", (d, w) -> {
                     WebStorage.getInstance().deleteAllData();
                     web.clearCache(true);
                     web.clearHistory();
                     CookieManager.getInstance().removeAllCookies(ok -> {
                         CookieManager.getInstance().flush();
-                        web.loadUrl(LOGIN);
+                        loadUrl(LOGIN);
                     });
                 })
                 .setNegativeButton("Cancelar", null)
@@ -494,10 +714,12 @@ public class MainActivity extends Activity {
 
     private void enqueueDownload() {
         if (pendingUrl == null) return;
+
         try {
             DownloadManager.Request r = new DownloadManager.Request(Uri.parse(pendingUrl));
             r.setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+
             if (pendingUa != null) r.addRequestHeader("User-Agent", pendingUa);
 
             String cookies = CookieManager.getInstance().getCookie(pendingUrl);
@@ -511,9 +733,9 @@ public class MainActivity extends Activity {
             DownloadManager dm =
                     (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             dm.enqueue(r);
-            toast("Download iniciado");
+            Toast.makeText(this, "Download iniciado", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            toast("Falha no download");
+            Toast.makeText(this, "Falha no download", Toast.LENGTH_SHORT).show();
         } finally {
             pendingUrl = null;
         }
@@ -523,12 +745,21 @@ public class MainActivity extends Activity {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, uri));
         } catch (Exception e) {
-            toast("Não há app para abrir este link");
+            Toast.makeText(this, "Não há app para abrir este link", Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void toggle(String key, boolean def) {
-        prefs.edit().putBoolean(key, !prefs.getBoolean(key, def)).apply();
+    private void hideCustomView() {
+        if (customView == null) return;
+
+        root.removeView(customView);
+        customView = null;
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+        if (customViewCallback != null) {
+            customViewCallback.onCustomViewHidden();
+            customViewCallback = null;
+        }
     }
 
     private String mark(boolean on) {
@@ -539,22 +770,110 @@ public class MainActivity extends Activity {
         return s != null && (s.startsWith("https://") || s.startsWith("http://"));
     }
 
-    private int dp(int v) {
-        return Math.round(v * getResources().getDisplayMetrics().density);
-    }
-
-    private void toast(String s) {
-        Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_BACK && event.getRepeatCount() == 0) {
+            event.startTracking();
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions,
+    public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            backLongPressed = true;
+            showMenu();
+            return true;
+        }
+        return super.onKeyLongPress(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (backLongPressed) {
+                backLongPressed = false;
+                return true;
+            }
+
+            if (customView != null) {
+                hideCustomView();
+            } else if (web.canGoBack()) {
+                web.goBack();
+            } else {
+                finish();
+            }
+            return true;
+        }
+        return super.onKeyUp(keyCode, event);
+    }
+
+    @Override
+    @Deprecated
+    public void onBackPressed() {
+        if (customView != null) {
+            hideCustomView();
+        } else if (web.canGoBack()) {
+            web.goBack();
+        } else {
+            super.onBackPressed();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == FILE_CHOOSER && fileCallback != null) {
+            Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+            fileCallback.onReceiveValue(results);
+            fileCallback = null;
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           String[] permissions,
                                            int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
         if (requestCode == STORAGE_PERMISSION
                 && grantResults.length > 0
                 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             enqueueDownload();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        web.onResume();
+
+        if (resumedOnce) {
+            String now = prefs.getString("cpft_config_json", "{}");
+            if (now == null) now = "{}";
+            if (!now.equals(cpftSnapshot)) {
+                cpftSnapshot = now;
+                recreate();
+                return;
+            }
+        }
+        resumedOnce = true;
+    }
+
+    @Override
+    protected void onPause() {
+        web.onPause();
+        super.onPause();
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (level >= TRIM_MEMORY_RUNNING_LOW && web != null) {
+            web.clearCache(false);
+            web.freeMemory();
         }
     }
 
@@ -565,15 +884,17 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    public void onBackPressed() {
-        if (web.canGoBack()) web.goBack();
-        else super.onBackPressed();
-    }
-
-    @Override
     protected void onDestroy() {
+        if (fileCallback != null) {
+            fileCallback.onReceiveValue(null);
+            fileCallback = null;
+        }
+
         if (web != null) {
             web.stopLoading();
+            web.loadUrl("about:blank");
+            web.clearHistory();
+            web.removeAllViews();
             web.destroy();
         }
         super.onDestroy();
