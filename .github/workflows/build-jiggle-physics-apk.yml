@@ -3,7 +3,7 @@ name: Build Jiggle Physics APK
 on:
   push:
     branches:
-      - jiggle-physics-app-v1
+      - jiggle-physics-app-v2
     paths:
       - "jiggle-physics-android/**"
       - ".github/workflows/build-jiggle-physics-apk.yml"
@@ -31,12 +31,25 @@ jobs:
         with:
           gradle-version: "8.7"
 
+      - name: Bundle real VRoid character and renderer
+        run: |
+          set -euxo pipefail
+          mkdir -p app/src/main/assets/vendor app/src/main/assets/models
+          curl -L --fail --retry 3 -o app/src/main/assets/vendor/three.min.js             https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js
+          curl -L --fail --retry 3 -o app/src/main/assets/vendor/GLTFLoader.js             https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js
+          curl -L --fail --retry 3 -o app/src/main/assets/vendor/three-vrm.js             https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.11/lib/three-vrm.js
+          curl -L --fail --retry 3 -o app/src/main/assets/models/female.vrm             https://raw.githubusercontent.com/madjin/vrm-samples/master/vroid/fem_vroid.vrm
+          ls -lh app/src/main/assets/vendor app/src/main/assets/models
+
+      - name: Inspect VRM rig
+        run: python3 tools/inspect_vrm.py app/src/main/assets/models/female.vrm
+
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: JigglePhysicsLab-debug
+          name: JigglePhysicsLab-v2-debug
           path: jiggle-physics-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
