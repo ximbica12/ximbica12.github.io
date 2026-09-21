@@ -1,26 +1,45 @@
-# Jiggle Physics Lab
+# Anime Jiggle Lab v2
 
-Mini sandbox 3D para Android 8+ (minSdk 26) focado em física de mola/amortecimento em duas regiões macias de um mannequin adulto não explícito.
+Sandbox 3D para Android 8+ com personagem VRoid real, rig humanoide e física de busto aplicada diretamente aos ossos skinned do personagem.
 
-## Recursos
-- Spring/damper em tempo real
-- Arraste direto por toque
-- Impulso pelo acelerômetro
-- Rigidez, damping, massa e escala ajustáveis
-- Botões Bounce, 0G, giro e reset
-- Render WebGL leve dentro de WebView
-- Fallback procedural caso o asset remoto falhe
+## O que mudou em relação à v1
+
+A v1 usava volumes procedurais separados do corpo. A v2 remove isso completamente.
+
+- Personagem anime VRoid real empacotado dentro do APK
+- Sem download de modelo em runtime
+- Usa os ossos reais `J_Sec_L_Bust1/2` e `J_Sec_R_Bust1/2`
+- Spring/damper independente em cada lado
+- Arrastar e soltar diretamente no busto
+- Tap/poke, botão Bounce e impulso pelo acelerômetro
+- Física secundária VRM continua ativa
+- Idle, Breathe e Dance procedurais no esqueleto
+- Câmera orbital e pinch zoom
+- Presets Natural, Soft, Jelly e Chaos
+- Foco de câmera e expressão Smile
+- Pixel ratio limitado para hardware Android antigo
 
 ## Asset 3D
-O app tenta carregar:
-- **Quaternius — Animated Woman**, CC0 / domínio público
-- Mirror utilizado: `tech-leads-club/nj-mmo/client/public/models/npcs/Roxxy.glb`
-- Licença registrada no mirror em `client/public/models/npcs/LICENSE.txt`
-- Fonte original: https://quaternius.com/packs/animatedwoman.html
 
-O corpo remoto é usado como base visual. A simulação macia é implementada separadamente como volumes procedurais sem detalhes explícitos.
+Build usa `HairSample_Female.vrm`, do conjunto de modelos de exemplo VRoid.
 
-## Build local
+Fonte:
+`madjin/vrm-samples/vroid/beta/HairSample_Female.vrm`
+
+A documentação oficial do VRoid lista **HairSample_Female** entre os sample models com licença **CC0**.
+
+O workflow baixa o arquivo durante o build e o empacota como:
+`app/src/main/assets/models/female.vrm`
+
+## Engine
+
+- Three.js 0.128
+- @pixiv/three-vrm 0.6.11
+- Android WebView com WebGL
+- minSdk 26 / Android 8+
+
+## Build
+
 Requer JDK 17 + Android SDK.
 
 ```bash
