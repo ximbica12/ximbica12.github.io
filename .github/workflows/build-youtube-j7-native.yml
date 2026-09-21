@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - name: Checkout project
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Java 25
@@ -23,51 +23,51 @@ jobs:
           distribution: temurin
           java-version: "25"
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq zip unzip curl git
-
-      - name: Fetch trusted builder
-        run: |
-          git clone --depth 1 https://github.com/peternmuller/revanced-morphe-builder.git builder
-          cp native-j7/config.toml builder/j7.toml
-
-      - name: Build minimal ARMv7 YouTube
-        working-directory: builder
-        run: |
-          set -euxo pipefail
-          bash build.sh j7.toml
-          echo "=== BUILD OUTPUT ==="
-          find build -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
-
-      - name: Select and verify APK
+      - name: Download verified build inputs
         shell: bash
         run: |
           set -euxo pipefail
-          mkdir -p dist
-          mapfile -t APKS < <(find builder/build -type f -name '*.apk' | sort)
-          if [ "${#APKS[@]}" -lt 1 ]; then
-            echo "No patched APK produced"
-            exit 1
-          fi
+          mkdir -p inputs dist
 
-          PATCHED="${APKS[0]}"
-          cp "$PATCHED" dist/YouTube-J7-Native-v0.2.0.apk
+          # Official Google-signed YouTube 20.21.37 universal/nodpi, minSdk 26.
+          curl -fL --retry 5 --retry-all-errors             'https://d.apkpure.net/b/APK/com.google.android.youtube?versionCode=1554771392'             -o inputs/youtube-20.21.37-stock.apk
+          echo 'ddbf39fa2729f3272616ef8e55a613aa17fa7527a25f923f849b2d2c4401002a  inputs/youtube-20.21.37-stock.apk' | sha256sum -c -
 
-          unzip -t dist/YouTube-J7-Native-v0.2.0.apk >/dev/null
-          unzip -l dist/YouTube-J7-Native-v0.2.0.apk | grep 'lib/armeabi-v7a/' | head
-          if unzip -l dist/YouTube-J7-Native-v0.2.0.apk | grep -q 'lib/arm64-v8a/'; then
-            echo "Unexpected arm64 libraries present"
-            exit 1
-          fi
-          sha256sum dist/YouTube-J7-Native-v0.2.0.apk | tee dist/SHA256SUMS.txt
+          curl -fL --retry 5             'https://github.com/MorpheApp/morphe-patches/releases/download/v1.44.0/patches-1.44.0.mpp'             -o inputs/patches-1.44.0.mpp
+          echo '936e67fa18ba361d4757ee2b640bdb08195af3420088aab9d0e1f03ba76a9b22  inputs/patches-1.44.0.mpp' | sha256sum -c -
 
-      - name: Bundle MicroG-RE universal
+          curl -fL --retry 5             'https://github.com/MorpheApp/morphe-desktop/releases/download/v1.16.0/morphe-desktop-1.16.0-all.jar'             -o inputs/morphe-desktop-1.16.0-all.jar
+          echo '82a0df2ff881d83d5ca8b4f9a6ce196bd4ac3b87ff147fe37845c296b436806c  inputs/morphe-desktop-1.16.0-all.jar' | sha256sum -c -
+
+      - name: Patch minimal Android 8 / ARMv7 build
+        shell: bash
         run: |
           set -euxo pipefail
-          curl -fL --retry 4             "https://github.com/MorpheApp/MicroG-RE/releases/download/7.1.1/microg-7.1.1.apk"             -o dist/MicroG-RE-7.1.1-universal.apk
-          echo "ae6bbffbf9f63be1328c0a7ee6f39859e0921e6d222a0a3b00ba4c97e290e883  dist/MicroG-RE-7.1.1-universal.apk" | sha256sum -c -
+          java -jar inputs/morphe-desktop-1.16.0-all.jar patch             -p inputs/patches-1.44.0.mpp             -o dist/YouTube-J7-Native-v0.2.0.apk             --exclusive             --striplibs armeabi-v7a             -e 'Hide ads'             -e 'SponsorBlock'             -e 'GmsCore support'             -e 'Spoof video streams'             -e 'Disable QUIC protocol'             -e 'Disable video codecs'             -e 'Video quality'             -e 'Remove background playback restrictions'             -e 'Return YouTube Dislike'             -e 'Sanitize sharing links'             -e 'Custom branding'             -OappIcon=play             -OcustomName=YouTube             inputs/youtube-20.21.37-stock.apk
+
+      - name: Verify patched APK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          unzip -t dist/YouTube-J7-Native-v0.2.0.apk >/dev/null
+
+          echo '=== Native ABI entries ==='
+          unzip -l dist/YouTube-J7-Native-v0.2.0.apk | grep 'lib/' | awk '{print $4}' | head -100
+
+          test -n "$(unzip -l dist/YouTube-J7-Native-v0.2.0.apk | grep 'lib/armeabi-v7a/' | head -1)"
+          ! unzip -l dist/YouTube-J7-Native-v0.2.0.apk | grep -q 'lib/arm64-v8a/'
+          ! unzip -l dist/YouTube-J7-Native-v0.2.0.apk | grep -q 'lib/x86/'
+          ! unzip -l dist/YouTube-J7-Native-v0.2.0.apk | grep -q 'lib/x86_64/'
+
+          sha256sum dist/YouTube-J7-Native-v0.2.0.apk | tee dist/SHA256SUMS.txt
+          stat -c '%n %s bytes' dist/YouTube-J7-Native-v0.2.0.apk
+
+      - name: Bundle MicroG-RE universal
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -fL --retry 5             'https://github.com/MorpheApp/MicroG-RE/releases/download/7.1.1/microg-7.1.1.apk'             -o dist/MicroG-RE-7.1.1-universal.apk
+          echo 'ae6bbffbf9f63be1328c0a7ee6f39859e0921e6d222a0a3b00ba4c97e290e883  dist/MicroG-RE-7.1.1-universal.apk' | sha256sum -c -
           sha256sum dist/MicroG-RE-7.1.1-universal.apk >> dist/SHA256SUMS.txt
 
       - name: Upload package
