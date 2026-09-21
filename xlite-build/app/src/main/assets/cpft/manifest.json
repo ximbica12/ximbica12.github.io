@@ -1,0 +1,41 @@
+{
+  "manifest_version": 2,
+  "default_locale": "en",
+  "name": "__MSG_extensionName__",
+  "description": "__MSG_extensionDescription__",
+  "homepage_url": "https://soitis.dev/control-panel-for-twitter",
+  "version": "4.24.1",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://twitter.com/*",
+        "https://mobile.twitter.com/*",
+        "https://x.com/*",
+        "https://mobile.x.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    "script.js"
+  ],
+  "options_ui": {
+    "browser_style": true,
+    "page": "options.html"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{5cce4ab5-3d47-41b9-af5e-8203eea05245}",
+      "strict_min_version": "121.0"
+    },
+    "gecko_android": {
+      "strict_min_version": "121.0"
+    }
+  }
+}
