@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Jiggle Physics Lab</title>
+<style>
+:root{--bg:#090a10;--panel:rgba(14,15,24,.88);--line:rgba(255,255,255,.12);--text:#f7f7fb;--muted:#aaaabd;--accent:#ff76c8}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#hud{position:fixed;top:max(12px,env(safe-area-inset-top));left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none}
+.badge{background:rgba(8,8,14,.6);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:999px;padding:7px 10px;font-size:12px;color:var(--muted)}
+#panel{position:fixed;left:10px;right:10px;bottom:max(10px,env(safe-area-inset-bottom));background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:12px;box-shadow:0 18px 60px rgba(0,0,0,.45)}
+.row{display:flex;gap:8px;align-items:center;margin:7px 0}
+.row label{width:72px;font-size:12px;color:var(--muted)}
+input[type=range]{flex:1;accent-color:var(--accent)}
+.val{width:38px;text-align:right;font-size:12px;color:#ddd}
+.buttons{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px}
+button{border:1px solid var(--line);background:#181925;color:#fff;border-radius:13px;padding:10px 6px;font-weight:700;font-size:12px}
+button:active{transform:scale(.97);background:#24263a}
+button.primary{background:linear-gradient(135deg,#ff76c8,#a86dff);border:none}
+#note{font-size:10px;color:#8f90a3;margin-top:7px;line-height:1.25}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="badge">JIGGLE LAB • 3D</div>
+  <div class="badge" id="status">carregando…</div>
+</div>
+
+<div id="panel">
+  <div class="row"><label>Rigidez</label><input id="stiff" type="range" min="4" max="36" step="1" value="14"><span class="val" id="stiffV">14</span></div>
+  <div class="row"><label>Damping</label><input id="damp" type="range" min="0.4" max="8" step="0.1" value="2.4"><span class="val" id="dampV">2.4</span></div>
+  <div class="row"><label>Massa</label><input id="mass" type="range" min="0.5" max="4" step="0.1" value="1.5"><span class="val" id="massV">1.5</span></div>
+  <div class="row"><label>Tamanho</label><input id="size" type="range" min="0.65" max="1.55" step="0.05" value="1"><span class="val" id="sizeV">1.00</span></div>
+  <div class="buttons">
+    <button class="primary" id="bounce">BOUNCE!</button>
+    <button id="zero">0G</button>
+    <button id="flip">Girar</button>
+    <button id="reset">Reset</button>
+  </div>
+  <div id="note">Arraste diretamente as duas regiões macias. Arraste fora delas para girar a câmera. O acelerômetro do celular também aplica impulso. Modelo-base CC0 carregado da internet; se falhar, entra o mannequin procedural.</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+(function(){
+'use strict';
+
+const MODEL_URL='https://raw.githubusercontent.com/tech-leads-club/nj-mmo/master/client/public/models/npcs/Roxxy.glb';
+const canvas=document.getElementById('c');
+const statusEl=document.getElementById('status');
+
+if(!window.THREE){
+  statusEl.textContent='sem WebGL lib';
+  return;
+}
+
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.setClearColor(0x090a10,1);
+
+const scene=new THREE.Scene();
+scene.fog=new THREE.Fog(0x090a10,8,15);
+
+const camera=new THREE.PerspectiveCamera(35,1,.05,30);
+camera.position.set(0,.2,7.1);
+
+scene.add(new THREE.HemisphereLight(0xffe8f6,0x202033,1.4));
+const key=new THREE.DirectionalLight(0xffffff,1.6); key.position.set(3,4,5); scene.add(key);
+const rim=new THREE.DirectionalLight(0xff68c7,.9); rim.position.set(-4,2,-3); scene.add(rim);
+
+const stage=new THREE.Group(); scene.add(stage);
+const floor=new THREE.Mesh(
+  new THREE.CircleGeometry(2.2,48),
+  new THREE.MeshStandardMaterial({color:0x151622,roughness:.88,metalness:.08})
+);
+floor.rotation.x=-Math.PI/2; floor.position.y=-2.72; stage.add(floor);
+
+const grid=new THREE.GridHelper(4.2,20,0x393949,0x22222c);
+grid.position.y=-2.70; stage.add(grid);
+
+let bodyRoot=null;
+let bodyWidth=1.45, bodyHeight=5.25, bodyDepth=.7;
+let anchors=[new THREE.Vector3(-.27,.85,.42),new THREE.Vector3(.27,.85,.42)];
+let usingRemote=false;
+
+function mat(color,rough=.52){
+  return new THREE.MeshStandardMaterial({color,roughness:rough,metalness:.02});
+}
+
+function buildFallback(){
+  const g=new THREE.Group();
+  const skin=mat(0xd7a58f,.6);
+  const dark=mat(0x5a405d,.7);
+  const torso=new THREE.Mesh(new THREE.SphereGeometry(1,28,20),skin);
+  torso.scale.set(.78,1.22,.48); torso.position.y=.25; g.add(torso);
+  const hips=new THREE.Mesh(new THREE.SphereGeometry(1,24,18),dark);
+  hips.scale.set(.82,.65,.48); hips.position.y=-1.2; g.add(hips);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.46,24,18),skin);
+  head.scale.y=1.15; head.position.y=2.0; g.add(head);
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.22,.26,.42,18),skin);
+  neck.position.y=1.49; g.add(neck);
+  [-1,1].forEach(s=>{
+    const arm=new THREE.Mesh(new THREE.CylinderGeometry(.17,.14,2.05,16),skin);
+    arm.position.set(s*.92,.05,0); arm.rotation.z=s*.10; g.add(arm);
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(.25,.19,2.45,18),skin);
+    leg.position.set(s*.38,-2.25,0); g.add(leg);
+  });
+  g.position.y=.55;
+  stage.add(g);
+  bodyRoot=g;
+  usingRemote=false;
+  anchors=[
+    new THREE.Vector3(-.31,.96,.48),
+    new THREE.Vector3(.31,.96,.48)
+  ];
+  statusEl.textContent='fallback local';
+}
+
+function loadRemote(){
+  if(!THREE.GLTFLoader){buildFallback();return;}
+  const loader=new THREE.GLTFLoader();
+  loader.load(MODEL_URL,function(gltf){
+    const obj=gltf.scene;
+    obj.traverse(n=>{
+      if(n.isMesh){
+        n.frustumCulled=true;
+        if(n.material){
+          n.material.side=THREE.FrontSide;
+          n.material.roughness=Math.max(.35,n.material.roughness||.5);
+        }
+      }
+    });
+
+    let box=new THREE.Box3().setFromObject(obj);
+    let size=new THREE.Vector3(); box.getSize(size);
+    const targetH=5.15;
+    const scale=targetH/Math.max(size.y,.001);
+    obj.scale.setScalar(scale);
+    box=new THREE.Box3().setFromObject(obj); box.getSize(size);
+    const center=new THREE.Vector3(); box.getCenter(center);
+    obj.position.x-=center.x;
+    obj.position.y-=center.y;
+    obj.position.z-=center.z;
+    obj.rotation.y=Math.PI;
+
+    stage.add(obj);
+    bodyRoot=obj;
+    bodyWidth=size.x; bodyHeight=size.y; bodyDepth=size.z;
+    const ax=Math.max(.24,Math.min(.38,bodyWidth*.18));
+    const ay=Math.max(.6,Math.min(1.2,bodyHeight*.19));
+    const az=Math.max(.28,bodyDepth*.43);
+    anchors=[new THREE.Vector3(-ax,ay,az),new THREE.Vector3(ax,ay,az)];
+    usingRemote=true;
+    statusEl.textContent='CC0 online ✓';
+  },undefined,function(){
+    buildFallback();
+  });
+}
+
+const breastMat=new THREE.MeshPhysicalMaterial({
+  color:0xd99d91,roughness:.5,metalness:0,clearcoat:.12,clearcoatRoughness:.7
+});
+const breastGeo=new THREE.SphereGeometry(.52,24,18);
+const boobs=[];
+for(let i=0;i<2;i++){
+  const mesh=new THREE.Mesh(breastGeo,breastMat.clone());
+  mesh.scale.set(.92,.9,1.08);
+  mesh.userData.boobIndex=i;
+  stage.add(mesh);
+  boobs.push({
+    mesh,
+    offset:new THREE.Vector3(),
+    velocity:new THREE.Vector3(),
+    impulse:new THREE.Vector3()
+  });
+}
+
+const state={k:14,d:2.4,m:1.5,scale:1,gravity:true};
+function bindRange(id,key,fmt){
+  const el=document.getElementById(id), out=document.getElementById(id+'V');
+  const update=()=>{state[key]=parseFloat(el.value);out.textContent=fmt?fmt(state[key]):String(state[key]);};
+  el.addEventListener('input',update); update();
+}
+bindRange('stiff','k');
+bindRange('damp','d',v=>v.toFixed(1));
+bindRange('mass','m',v=>v.toFixed(1));
+bindRange('size','scale',v=>v.toFixed(2));
+
+document.getElementById('bounce').onclick=()=>{
+  boobs.forEach((b,i)=>b.velocity.add(new THREE.Vector3((i?1:-1)*.55,1.75,1.4)));
+};
+document.getElementById('zero').onclick=e=>{
+  state.gravity=!state.gravity;
+  e.currentTarget.textContent=state.gravity?'0G':'GRAV';
+};
+document.getElementById('flip').onclick=()=>{
+  if(bodyRoot) bodyRoot.rotation.y+=Math.PI;
+  anchors.forEach(a=>a.z*=-1);
+};
+document.getElementById('reset').onclick=()=>{
+  boobs.forEach(b=>{b.offset.set(0,0,0);b.velocity.set(0,0,0);});
+};
+
+let last=performance.now();
+function physics(dt){
+  const maxDt=.033; dt=Math.min(maxDt,dt);
+  boobs.forEach((b,i)=>{
+    const f=b.offset.clone().multiplyScalar(-state.k);
+    f.addScaledVector(b.velocity,-state.d);
+    if(state.gravity) f.y-=.7*state.m;
+    f.add(b.impulse); b.impulse.multiplyScalar(.82);
+    const acc=f.multiplyScalar(1/state.m);
+    b.velocity.addScaledVector(acc,dt);
+    b.offset.addScaledVector(b.velocity,dt);
+    if(b.offset.length()>.72){
+      b.offset.setLength(.72);
+      b.velocity.multiplyScalar(.72);
+    }
+    const a=anchors[i];
+    b.mesh.position.copy(a).add(b.offset);
+    const speed=Math.min(1,b.velocity.length()/4);
+    const stretch=1+Math.min(.2,Math.abs(b.offset.y)*.16+speed*.03);
+    b.mesh.scale.set(.92*state.scale/stretch,.90*state.scale*stretch,1.08*state.scale);
+  });
+}
+
+const raycaster=new THREE.Raycaster();
+const pointer=new THREE.Vector2();
+const dragPlane=new THREE.Plane(new THREE.Vector3(0,0,1),-.6);
+let selected=-1, rotating=false, lastX=0, lastY=0;
+function ndc(ev){
+  const r=canvas.getBoundingClientRect();
+  pointer.x=((ev.clientX-r.left)/r.width)*2-1;
+  pointer.y=-((ev.clientY-r.top)/r.height)*2+1;
+}
+canvas.addEventListener('pointerdown',ev=>{
+  ndc(ev); raycaster.setFromCamera(pointer,camera);
+  const hits=raycaster.intersectObjects(boobs.map(b=>b.mesh),false);
+  if(hits.length){
+    selected=hits[0].object.userData.boobIndex;
+    dragPlane.set(new THREE.Vector3(0,0,1),-anchors[selected].z);
+  }else{
+    rotating=true;lastX=ev.clientX;lastY=ev.clientY;
+  }
+  try{canvas.setPointerCapture(ev.pointerId);}catch(_){}
+});
+canvas.addEventListener('pointermove',ev=>{
+  if(selected>=0){
+    ndc(ev);raycaster.setFromCamera(pointer,camera);
+    const p=new THREE.Vector3();
+    if(raycaster.ray.intersectPlane(dragPlane,p)){
+      const desired=p.sub(anchors[selected]).clampLength(0,.68);
+      const b=boobs[selected];
+      b.velocity.add(desired.clone().sub(b.offset).multiplyScalar(8));
+      b.offset.lerp(desired,.38);
+    }
+  }else if(rotating){
+    const dx=ev.clientX-lastX, dy=ev.clientY-lastY;
+    stage.rotation.y+=dx*.008;
+    stage.rotation.x=Math.max(-.24,Math.min(.24,stage.rotation.x+dy*.004));
+    lastX=ev.clientX;lastY=ev.clientY;
+  }
+});
+function end(){selected=-1;rotating=false;}
+canvas.addEventListener('pointerup',end);
+canvas.addEventListener('pointercancel',end);
+
+let lastMotion=0;
+window.addEventListener('devicemotion',e=>{
+  const a=e.accelerationIncludingGravity;
+  if(!a)return;
+  const now=performance.now();
+  if(now-lastMotion<35)return;
+  lastMotion=now;
+  const fx=Math.max(-3,Math.min(3,(a.x||0)*.035));
+  const fy=Math.max(-3,Math.min(3,-(a.y||0)*.025));
+  boobs.forEach((b,i)=>b.impulse.add(new THREE.Vector3(fx*(i?1:-1),fy,Math.abs(fx)*.2)));
+},true);
+
+function resize(){
+  const w=innerWidth,h=innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+addEventListener('resize',resize);resize();
+
+let frames=0,fpsT=performance.now();
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt=(now-last)/1000;last=now;
+  physics(dt);
+  renderer.render(scene,camera);
+  frames++;
+  if(now-fpsT>1000){
+    const fps=Math.round(frames*1000/(now-fpsT));
+    if(usingRemote) statusEl.textContent='CC0 online • '+fps+' fps';
+    else statusEl.textContent='fallback • '+fps+' fps';
+    frames=0;fpsT=now;
+  }
+}
+loadRemote();
+requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
