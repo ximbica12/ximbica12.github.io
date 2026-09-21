@@ -1,4 +1,4 @@
-name: Build X Lite Android 8
+name: Build X Lite Android 8 WebView
 
 on:
   push:
@@ -53,21 +53,26 @@ jobs:
           set -euo pipefail
           APK="x-lite-android8/app/build/outputs/apk/debug/app-debug.apk"
           "$ANDROID_SDK_ROOT/build-tools/37.0.0/aapt" dump badging "$APK" | tee /tmp/badging.txt
+
+          grep -q "package: name='com.ximbica.xlite' versionCode='3' versionName='0.3.0'" /tmp/badging.txt
           grep -q "sdkVersion:'26'" /tmp/badging.txt
           grep -q "application-icon-" /tmp/badging.txt
-          unzip -l "$APK" | grep -q "lib/armeabi-v7a/"
-          if unzip -l "$APK" | grep -qE "lib/(arm64-v8a|x86|x86_64)/"; then
-            echo "Unexpected ABI found"
+
+          if unzip -l "$APK" | grep -qE "lib/[^/]+/.*\.so$"; then
+            echo "Unexpected native engine/library found in WebView build"
+            unzip -l "$APK" | grep -E "lib/[^/]+/.*\.so$" || true
             exit 1
           fi
+
+          test -f x-lite-android8/app/src/main/assets/xlite-webview.js
 
       - name: Prepare APK and SAI bundle
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist/sai
-          cp x-lite-android8/app/build/outputs/apk/debug/app-debug.apk dist/X-Lite-J7-Android8.apk
-          cp dist/X-Lite-J7-Android8.apk dist/sai/base.apk
+          cp x-lite-android8/app/build/outputs/apk/debug/app-debug.apk dist/X-Lite-WebView-J7-v0.3.0.apk
+          cp dist/X-Lite-WebView-J7-v0.3.0.apk dist/sai/base.apk
 
           python3 - <<'PY'
           import json
@@ -81,8 +86,8 @@ jobs:
               "export_timestamp": now,
               "label": "X Lite",
               "package": "com.ximbica.xlite",
-              "version_code": 2,
-              "version_name": "0.2.0"
+              "version_code": 3,
+              "version_name": "0.3.0"
           }
 
           meta_v2 = {
@@ -96,8 +101,8 @@ jobs:
               "min_sdk": 26,
               "package": "com.ximbica.xlite",
               "target_sdk": 35,
-              "version_code": 2,
-              "version_name": "0.2.0"
+              "version_code": 3,
+              "version_name": "0.3.0"
           }
 
           Path("dist/sai/meta.sai_v1.json").write_text(
@@ -112,15 +117,18 @@ jobs:
 
           (
             cd dist/sai
-            zip -9 ../X-Lite-J7-Android8.apks base.apk meta.sai_v1.json meta.sai_v2.json
+            zip -9 ../X-Lite-WebView-J7-v0.3.0.apks base.apk meta.sai_v1.json meta.sai_v2.json
           )
+
+          sha256sum             dist/X-Lite-WebView-J7-v0.3.0.apk             dist/X-Lite-WebView-J7-v0.3.0.apks             > dist/X-Lite-WebView-J7-v0.3.0-SHA256.txt
 
       - name: Upload install packages
         uses: actions/upload-artifact@v4
         with:
-          name: X-Lite-J7-Android8
+          name: X-Lite-WebView-J7-v0.3.0
           path: |
-            dist/X-Lite-J7-Android8.apk
-            dist/X-Lite-J7-Android8.apks
+            dist/X-Lite-WebView-J7-v0.3.0.apk
+            dist/X-Lite-WebView-J7-v0.3.0.apks
+            dist/X-Lite-WebView-J7-v0.3.0-SHA256.txt
           if-no-files-found: error
           retention-days: 30
