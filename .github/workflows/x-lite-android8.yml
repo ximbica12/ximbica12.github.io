@@ -47,6 +47,20 @@ jobs:
         working-directory: x-lite-android8
         run: gradle --no-daemon :app:assembleDebug
 
+      - name: Validate APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="x-lite-android8/app/build/outputs/apk/debug/app-debug.apk"
+          "$ANDROID_SDK_ROOT/build-tools/37.0.0/aapt" dump badging "$APK" | tee /tmp/badging.txt
+          grep -q "sdkVersion:'26'" /tmp/badging.txt
+          grep -q "application-icon-" /tmp/badging.txt
+          unzip -l "$APK" | grep -q "lib/armeabi-v7a/"
+          if unzip -l "$APK" | grep -qE "lib/(arm64-v8a|x86|x86_64)/"; then
+            echo "Unexpected ABI found"
+            exit 1
+          fi
+
       - name: Prepare APK and SAI bundle
         shell: bash
         run: |
@@ -67,8 +81,8 @@ jobs:
               "export_timestamp": now,
               "label": "X Lite",
               "package": "com.ximbica.xlite",
-              "version_code": 1,
-              "version_name": "0.1.0"
+              "version_code": 2,
+              "version_name": "0.2.0"
           }
 
           meta_v2 = {
@@ -82,8 +96,8 @@ jobs:
               "min_sdk": 26,
               "package": "com.ximbica.xlite",
               "target_sdk": 35,
-              "version_code": 1,
-              "version_name": "0.1.0"
+              "version_code": 2,
+              "version_name": "0.2.0"
           }
 
           Path("dist/sai/meta.sai_v1.json").write_text(
