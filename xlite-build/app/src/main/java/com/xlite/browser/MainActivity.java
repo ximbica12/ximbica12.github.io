@@ -19,6 +19,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import org.json.JSONObject;
+import org.mozilla.geckoview.AllowOrDeny;
 import org.mozilla.geckoview.ContentBlocking;
 import org.mozilla.geckoview.GeckoResult;
 import org.mozilla.geckoview.GeckoRuntime;
@@ -172,7 +173,7 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public GeckoResult<GeckoSession.NavigationDelegate.AllowOrDeny> onLoadRequest(
+            public GeckoResult<AllowOrDeny> onLoadRequest(
                     GeckoSession s, LoadRequest request) {
                 String uri = request.uri;
                 if (uri == null) return null;
