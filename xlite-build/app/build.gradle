@@ -10,8 +10,8 @@ android {
         applicationId 'com.xlite.browser.debug'
         minSdk 26
         targetSdk 35
-        versionCode 5
-        versionName '0.4.1'
+        versionCode 6
+        versionName '0.5.0'
     }
 
     buildTypes {
@@ -28,8 +28,14 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
-    implementation 'androidx.webkit:webkit:1.17.0'
+    implementation 'org.mozilla.geckoview:geckoview-armeabi-v7a:156.0.20260909172920'
 }
