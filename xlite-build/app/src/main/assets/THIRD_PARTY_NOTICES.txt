@@ -1,0 +1,12 @@
+Control Panel for Twitter
+Version integrated: 4.24.1
+Project: https://github.com/insin/control-panel-for-twitter
+Website: https://soitis.dev/control-panel-for-twitter
+Copyright (c) 2019, Jonny Buchanan
+License: MIT
+
+The original MIT license applies to the embedded Control Panel for Twitter code.
+The XLite Android integration is not affiliated with X Corp. or the Control Panel author.
+
+For safety and platform compliance, XLite explicitly overrides the upstream
+bypassAgeVerification setting to false.
