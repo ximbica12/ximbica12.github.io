@@ -7,7 +7,7 @@
     <application
         android:allowBackup="false"
         android:hardwareAccelerated="true"
-        android:label="XLite for X"
+        android:icon="@drawable/ic_xlite"\n        android:roundIcon="@drawable/ic_xlite"\n        android:label="XLite for X"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:usesCleartextTraffic="false">
