@@ -7,4 +7,14 @@
     <string name="youtube_direct_import_done">Imported %1$d subscriptions, %2$d playlists, %3$d playlist videos and %4$d liked videos.</string>
     <string name="youtube_direct_import_cancelled">Google sign-in was cancelled.</string>
     <string name="youtube_direct_import_failed">YouTube import failed: %1$s</string>
+
+    <string name="profiles">Profiles</string>
+    <string name="new_profile">New profile</string>
+    <string name="profile_name">Profile name</string>
+    <string name="profile_create">Create</string>
+    <string name="your_subscriptions">Your subscriptions</string>
+    <string name="discovery_for_you">Discovery for you</string>
+    <string name="watch_later_local">Watch later</string>
+    <string name="add_watch_later">Save to Watch later</string>
+    <string name="remove_watch_later">Remove from Watch later</string>
 </resources>
