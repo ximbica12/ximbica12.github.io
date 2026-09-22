@@ -2,6 +2,7 @@ package com.ximbica.tubelite;
 
 import android.app.AlertDialog;
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
@@ -14,7 +15,9 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
-import android.widget.Button;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -63,8 +66,7 @@ public final class MainActivity extends AppCompatActivity {
     private TextView status;
     private TextView nowTitle;
     private TextView nowChannel;
-    private TextView microgBadge;
-    private Button accountButton;
+    private TextView accountButton;
     private GoogleYouTubeAuth googleAuth;
     private EditText searchBox;
     private LinearLayout playerPanel;
@@ -94,82 +96,92 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void buildUi() {
+        getWindow().setStatusBarColor(Ui.BG);
+        getWindow().setNavigationBarColor(Ui.SURFACE);
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(15, 15, 15));
+        root.setBackgroundColor(Ui.BG);
         setContentView(root);
 
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.setPadding(dp(12), dp(10), dp(12), dp(8));
+        top.setPadding(dp(14), dp(10), dp(12), dp(8));
         root.addView(top, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(60)));
+
+        TextView brandMark = new TextView(this);
+        brandMark.setText("▶");
+        brandMark.setTextColor(Ui.PRIMARY);
+        brandMark.setTextSize(17);
+        brandMark.setGravity(Gravity.CENTER);
+        brandMark.setBackground(Ui.round(this, Ui.PRIMARY_CONTAINER, 12));
+        top.addView(brandMark, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        LinearLayout titleWrap = new LinearLayout(this);
+        titleWrap.setOrientation(LinearLayout.VERTICAL);
+        titleWrap.setPadding(dp(10), 0, 0, 0);
+        top.addView(titleWrap, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         TextView brand = new TextView(this);
-        brand.setText("▶  TubeLite J7");
-        brand.setTextColor(Color.WHITE);
-        brand.setTextSize(19);
+        brand.setText("TubeLite");
+        brand.setTextColor(Ui.TEXT);
+        brand.setTextSize(20);
         brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        top.addView(brand, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        titleWrap.addView(brand);
 
-        TextView adFree = badge("SEM ADS");
-        top.addView(adFree);
+        TextView subtitle = new TextView(this);
+        subtitle.setText("leve • Android 8");
+        subtitle.setTextColor(0xFF938F99);
+        subtitle.setTextSize(10.5f);
+        titleWrap.addView(subtitle);
 
-        microgBadge = badge("microG ?");
-        LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        badgeLp.setMargins(dp(8), 0, 0, 0);
-        top.addView(microgBadge, badgeLp);
-
-        accountButton = new Button(this);
+        accountButton = new TextView(this);
         accountButton.setText("Entrar");
-        accountButton.setAllCaps(false);
-        accountButton.setTextSize(11);
-        accountButton.setMinWidth(0);
-        accountButton.setMinimumWidth(0);
-        accountButton.setPadding(dp(8), 0, dp(8), 0);
-        LinearLayout.LayoutParams accountLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, dp(36));
-        accountLp.setMargins(dp(6), 0, 0, 0);
-        top.addView(accountButton, accountLp);
+        accountButton.setTextColor(Ui.ON_PRIMARY_CONTAINER);
+        accountButton.setTextSize(12);
+        accountButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        accountButton.setGravity(Gravity.CENTER);
+        accountButton.setPadding(dp(13), 0, dp(13), 0);
+        accountButton.setBackground(Ui.round(this, Ui.PRIMARY_CONTAINER, 20));
+        top.addView(accountButton, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(38)));
         accountButton.setOnClickListener(v -> showAccountMenu());
 
         LinearLayout searchRow = new LinearLayout(this);
-        searchRow.setPadding(dp(10), 0, dp(10), dp(8));
+        searchRow.setGravity(Gravity.CENTER_VERTICAL);
+        searchRow.setPadding(dp(12), dp(2), dp(12), dp(8));
         root.addView(searchRow, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(58)));
 
         searchBox = new EditText(this);
         searchBox.setSingleLine(true);
-        searchBox.setHint("Pesquisar vídeos");
-        searchBox.setHintTextColor(Color.rgb(145, 145, 145));
-        searchBox.setTextColor(Color.WHITE);
-        searchBox.setTextSize(15);
-        searchBox.setBackgroundColor(Color.rgb(37, 37, 37));
-        searchBox.setPadding(dp(12), 0, dp(12), 0);
+        searchBox.setHint("Pesquisar no YouTube");
+        searchBox.setHintTextColor(0xFF938F99);
+        searchBox.setTextColor(Ui.TEXT);
+        searchBox.setTextSize(14);
+        searchBox.setBackground(Ui.roundStroke(this, Ui.SURFACE_2, 24, Ui.OUTLINE, 1));
+        searchBox.setPadding(dp(16), 0, dp(14), 0);
         searchBox.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
-        searchRow.addView(searchBox, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        searchBox.setSelectAllOnFocus(false);
+        searchRow.addView(searchBox, new LinearLayout.LayoutParams(0, dp(48), 1f));
 
-        Button searchButton = new Button(this);
-        searchButton.setText("Buscar");
-        searchButton.setAllCaps(false);
+        ImageButton searchButton = new ImageButton(this);
+        searchButton.setImageResource(R.drawable.ic_search);
+        searchButton.setScaleType(ImageView.ScaleType.CENTER);
+        searchButton.setPadding(dp(11), dp(11), dp(11), dp(11));
+        searchButton.setBackground(Ui.circle(Ui.PRIMARY_CONTAINER));
+        searchButton.setContentDescription("Pesquisar");
         LinearLayout.LayoutParams searchButtonLp =
-                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44));
+                new LinearLayout.LayoutParams(dp(48), dp(48));
         searchButtonLp.setMargins(dp(8), 0, 0, 0);
         searchRow.addView(searchButton, searchButtonLp);
-
-        Button homeButton = new Button(this);
-        homeButton.setText("Início");
-        homeButton.setAllCaps(false);
-        LinearLayout.LayoutParams homeLp =
-                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44));
-        homeLp.setMargins(dp(6), 0, 0, 0);
-        searchRow.addView(homeButton, homeLp);
 
         playerPanel = new LinearLayout(this);
         playerPanel.setOrientation(LinearLayout.VERTICAL);
         playerPanel.setVisibility(View.GONE);
-        playerPanel.setBackgroundColor(Color.BLACK);
+        playerPanel.setBackgroundColor(Ui.SURFACE);
         root.addView(playerPanel, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -177,45 +189,88 @@ public final class MainActivity extends AppCompatActivity {
         playerView.setUseController(true);
         playerView.setKeepScreenOn(true);
         playerPanel.addView(playerView, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(220)));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(215)));
 
         nowTitle = new TextView(this);
-        nowTitle.setTextColor(Color.WHITE);
+        nowTitle.setTextColor(Ui.TEXT);
         nowTitle.setTextSize(16);
         nowTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        nowTitle.setPadding(dp(12), dp(8), dp(12), 0);
+        nowTitle.setPadding(dp(14), dp(10), dp(14), 0);
         nowTitle.setMaxLines(2);
         playerPanel.addView(nowTitle);
 
         nowChannel = new TextView(this);
-        nowChannel.setTextColor(Color.rgb(170, 170, 170));
-        nowChannel.setTextSize(13);
-        nowChannel.setPadding(dp(12), dp(4), dp(12), dp(8));
+        nowChannel.setTextColor(Ui.MUTED);
+        nowChannel.setTextSize(12);
+        nowChannel.setPadding(dp(14), dp(4), dp(14), dp(10));
         playerPanel.addView(nowChannel);
 
         status = new TextView(this);
-        status.setTextColor(Color.rgb(190, 190, 190));
-        status.setTextSize(13);
-        status.setPadding(dp(12), dp(6), dp(12), dp(6));
-        root.addView(status);
+        status.setTextColor(Ui.MUTED);
+        status.setTextSize(11.5f);
+        status.setGravity(Gravity.CENTER_VERTICAL);
+        status.setPadding(dp(12), 0, dp(12), 0);
+        status.setBackground(Ui.round(this, Ui.SURFACE_2, 13));
+        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(34));
+        statusLp.setMargins(dp(12), dp(2), dp(12), dp(3));
+        root.addView(status, statusLp);
 
         recycler = new RecyclerView(this);
         recycler.setLayoutManager(new LinearLayoutManager(this));
         recycler.setHasFixedSize(true);
         recycler.setItemAnimator(null);
         recycler.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        recycler.setBackgroundColor(Ui.BG);
+        recycler.setPadding(0, dp(2), 0, dp(4));
         adapter = new VideoAdapter(item -> playVideo(item.getUrl()));
         recycler.setAdapter(adapter);
         root.addView(recycler, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
+        LinearLayout bottomNav = new LinearLayout(this);
+        bottomNav.setOrientation(LinearLayout.HORIZONTAL);
+        bottomNav.setGravity(Gravity.CENTER);
+        bottomNav.setBackgroundColor(Ui.SURFACE);
+        bottomNav.setPadding(dp(4), dp(4), dp(4), dp(4));
+        root.addView(bottomNav, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(68)));
+
+        bottomNav.addView(makeNavButton(
+                R.drawable.ic_home,
+                "Início",
+                true,
+                () -> {
+                    hideKeyboard();
+                    loadHome();
+                }
+        ), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+
+        bottomNav.addView(makeNavButton(
+                R.drawable.ic_search,
+                "Pesquisar",
+                false,
+                () -> {
+                    searchBox.requestFocus();
+                    InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) imm.showSoftInput(searchBox, InputMethodManager.SHOW_IMPLICIT);
+                }
+        ), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+
+        bottomNav.addView(makeNavButton(
+                R.drawable.ic_account,
+                "Conta",
+                false,
+                this::showAccountMenu
+        ), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+
         searchButton.setOnClickListener(v -> runSearch());
-        homeButton.setOnClickListener(v -> loadHome());
         searchBox.setOnEditorActionListener((v, actionId, event) -> {
             boolean enter = event != null
                     && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
                     && event.getAction() == KeyEvent.ACTION_DOWN;
             if (actionId == EditorInfo.IME_ACTION_SEARCH || enter) {
+                hideKeyboard();
                 runSearch();
                 return true;
             }
@@ -223,39 +278,60 @@ public final class MainActivity extends AppCompatActivity {
         });
     }
 
-    private TextView badge(String text) {
-        TextView t = new TextView(this);
-        t.setText(text);
-        t.setTextColor(Color.WHITE);
-        t.setTextSize(10);
-        t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        t.setPadding(dp(8), dp(5), dp(8), dp(5));
-        t.setBackgroundColor(Color.rgb(70, 70, 70));
-        return t;
+    private LinearLayout makeNavButton(int iconRes, String label, boolean selected, Runnable action) {
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.VERTICAL);
+        item.setGravity(Gravity.CENTER);
+        item.setPadding(dp(6), dp(3), dp(6), dp(3));
+
+        LinearLayout iconPill = new LinearLayout(this);
+        iconPill.setGravity(Gravity.CENTER);
+        iconPill.setBackground(selected
+                ? Ui.round(this, Ui.PRIMARY_CONTAINER, 20)
+                : Ui.round(this, Ui.SURFACE, 20));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        iconPill.addView(icon, new LinearLayout.LayoutParams(dp(21), dp(21)));
+        item.addView(iconPill, new LinearLayout.LayoutParams(dp(56), dp(31)));
+
+        TextView text = new TextView(this);
+        text.setText(label);
+        text.setTextColor(selected ? Ui.PRIMARY : Ui.MUTED);
+        text.setTextSize(10.5f);
+        text.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
+        text.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams textLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        textLp.setMargins(0, dp(2), 0, 0);
+        item.addView(text, textLp);
+
+        item.setOnClickListener(v -> action.run());
+        return item;
+    }
+
+    private void hideKeyboard() {
+        View current = getCurrentFocus();
+        if (current == null) return;
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) imm.hideSoftInputFromWindow(current.getWindowToken(), 0);
+        current.clearFocus();
     }
 
     private void updateMicroGStatus() {
         boolean revancedMicroG = packageExists("app.revanced.android.gms");
         boolean standardGms = packageExists("com.google.android.gms");
-
-        if (revancedMicroG) {
-            microgBadge.setText("microG ✓");
-            microgBadge.setBackgroundColor(Color.rgb(30, 120, 70));
-        } else if (standardGms) {
-            microgBadge.setText("GMS ✓");
-        } else {
-            microgBadge.setText("microG —");
-        }
-
-        microgBadge.setOnClickListener(v -> Toast.makeText(
-                this,
-                revancedMicroG
-                        ? "ReVanced GmsCore detectado. O login do TubeLite usa a autorização OAuth oficial quando Google Play Services compatível está disponível."
-                        : standardGms
-                        ? "Google Play Services detectado. Login OAuth disponível no botão de conta."
-                        : "Google Play Services não detectado. O modo visitante continua funcionando normalmente.",
-                Toast.LENGTH_LONG
-        ).show());
+        String statusText = revancedMicroG
+                ? "ReVanced GmsCore detectado"
+                : standardGms
+                ? "Google Play Services detectado"
+                : "Google Play Services não detectado";
+        accountButton.setContentDescription("Conta • " + statusText);
+        accountButton.setOnLongClickListener(v -> {
+            Toast.makeText(this, statusText, Toast.LENGTH_SHORT).show();
+            return true;
+        });
     }
 
     private boolean packageExists(String packageName) {
@@ -584,7 +660,7 @@ public final class MainActivity extends AppCompatActivity {
             if (resultCode == RESULT_OK && data != null && googleAuth != null) {
                 googleAuth.handleResolutionResult(data);
             } else {
-                status.setText("Login Google cancelado.");
+                status.setText("Login cancelado/bloqueado. Se apareceu erro 403, libere esta conta em Público-alvo > Usuários de teste no Google Cloud.");
             }
         }
     }
