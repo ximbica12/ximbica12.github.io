@@ -12,7 +12,7 @@ This branch builds a J7-focused derivative from the official LibreTube source.
 - app name: TubeLite J7
 - minSdk remains 26 (Android 8.0)
 - ARM ABI restricted to armeabi-v7a
-- version: 32.1-j7.3
+- version: 32.1-j7.4
 - release build generated from pinned upstream source
 - patched source archive is uploaded together with the APK for GPL compliance
 
@@ -56,3 +56,18 @@ Enquanto o projeto OAuth estiver em modo de teste, somente contas adicionadas co
 
 O feed Home personalizado do YouTube não é exposto atualmente pela YouTube Data API.
 As coleções oficiais Watch History e Watch Later deixaram de ser recuperáveis pela API em 2016, portanto o TubeLite mantém histórico e Watch Later localmente por perfil.
+
+
+## J7.4 — Correção PiP / System UI no Android 8
+
+O LibreTube entra automaticamente em Picture-in-Picture ao sair para a tela inicial enquanto um vídeo está tocando. Em Android 8.0/8.1 essa transição pode ser problemática em aparelhos antigos/low-memory.
+
+Nesta build:
+- PiP é desativado no app em API 26/27 (Android 8.0/8.1);
+- o botão de PiP fica oculto nesses sistemas;
+- ao apertar Home no Android 8/8.1, a reprodução de vídeo é pausada;
+- o track de vídeo é desativado enquanto o app está fora da tela, liberando decoder/surface;
+- ao voltar ao app, o track de vídeo é reativado pelo fluxo normal do LibreTube;
+- Android 9+ mantém o PiP normal.
+
+O modo de áudio em segundo plano continua disponível quando o usuário o escolhe explicitamente.
