@@ -18,13 +18,13 @@ s = sub_once(
 )
 s = sub_once(
     r'versionCode\s*=\s*\d+',
-    'versionCode = 320103',
+    'versionCode = 320104',
     s,
     "versionCode",
 )
 s = sub_once(
     r'versionName\s*=\s*"[^"]+"',
-    'versionName = "32.1-j7.3"',
+    'versionName = "32.1-j7.4"',
     s,
     "versionName",
 )
@@ -289,12 +289,56 @@ if "binding.toolbar.subtitle = ProfileManager.getActiveProfile().name" not in ma
     )
 main_path.write_text(main, encoding="utf-8")
 
+
+# Android 8/8.1 stability fix: never enter system PiP when leaving the app.
+# On Oreo we pause immediately and disable the video track instead of moving the
+# video Surface into a system overlay. Android 9+ keeps upstream PiP behavior.
+player_path = Path("upstream/app/src/main/java/com/github/libretube/ui/fragments/PlayerFragment.kt")
+player = player_path.read_text(encoding="utf-8")
+
+if "import android.os.Build\n" not in player:
+    player = player.replace(
+        "import android.os.Bundle\n",
+        "import android.os.Build\nimport android.os.Bundle\n",
+        1,
+    )
+
+old_leave_hint = """    fun onUserLeaveHint() {
+        if (shouldStartPiP()) {
+            PictureInPictureCompat.enterPictureInPictureMode(requireActivity(), pipParams)
+        }
+    }
+"""
+new_leave_hint = """    fun onUserLeaveHint() {
+        if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.O_MR1) {
+            // Samsung/low-memory Oreo safety path: do not create the system PiP
+            // window. Pausing also prevents the video decoder/surface from staying
+            // active behind the launcher, while keeping the position/session intact.
+            if (::playerController.isInitialized) {
+                playerController.pause()
+                setAutoPlayCountdownEnabled(false)
+                setVideoTrackTypeDisabled(true)
+            }
+            isEnteringPiPMode = false
+            return
+        }
+
+        if (shouldStartPiP()) {
+            PictureInPictureCompat.enterPictureInPictureMode(requireActivity(), pipParams)
+        }
+    }
+"""
+if old_leave_hint not in player:
+    raise SystemExit("patch failed: PlayerFragment onUserLeaveHint anchor")
+player = player.replace(old_leave_hint, new_leave_hint, 1)
+player_path.write_text(player, encoding="utf-8")
+
 # Keep attribution visible inside the patched source.
 notice = Path("upstream/TUBELITE_J7_MODIFICATIONS.md")
 notice.write_text(
     "# TubeLite J7 modifications\n\n"
     "Based on LibreTube v32.1 (GPL-3.0-or-later).\n"
-    "Changes: Android applicationId, display name, version metadata, ARMv7 targeting, direct YouTube OAuth import, isolated local profiles, personalized Home discovery, and local Watch Later for Samsung Galaxy J7 Prime.\n"
+    "Changes: Android applicationId, display name, version metadata, ARMv7 targeting, direct YouTube OAuth import, isolated local profiles, personalized Home discovery, local Watch Later, and Oreo PiP/system-UI stability safeguards for Samsung Galaxy J7 Prime.\n"
     "The upstream project and copyright notices remain intact.\n",
     encoding="utf-8",
 )
