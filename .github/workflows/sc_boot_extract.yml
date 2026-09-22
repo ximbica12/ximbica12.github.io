@@ -1,0 +1,85 @@
+name: Small Complex boot extraction
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'sc_port/**'
+      - '.github/workflows/sc_boot_extract.yml'
+
+jobs:
+  extract:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install downloader
+        run: python -m pip install --disable-pip-version-check gdown==5.2.0
+      - name: Download original Bakin package from owner's Drive
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force work,work\game_data | Out-Null
+          python -m gdown 1hhjEdkW9PDkuQs9egRDt9xSsfLA4a0Dp -O work\data.rbpack
+          $files = @{
+            "common.dll"="17-BDmIpSF1MtRFH3fHasmdM1K8ImKqg8"
+            "SharpKmyCore.dll"="1LV0z4ZPPg6W2OTuWZs032I3bFKd8iI-K"
+            "kmyCore.dll"="1AizDuufUUBOa78S-TPy9_WsZOgtt3FWN"
+            "YamlDotNet.dll"="1MBgsZvNJ9irbYZ82TTmys724iRzi9Odh"
+            "SharpDX.dll"="13fXGRezoFy6bxGEP4Ovn43TLVxgpHPCh"
+            "SharpDX.DirectInput.dll"="1qKJvFL2CyDgA4ZizmexuYIAPWAziAXvt"
+            "vcruntime140.dll"="1yXjgATcM4dfdwc9Y0NioKnocjshA0dtu"
+            "vcruntime140_1.dll"="1Q67iNpildTi8AUygT6RRKjFRSJHm34WU"
+            "msvcp140.dll"="1SQoBSxX4yZ3VerttK5HF05gNbWQ30jmw"
+            "msvcp140_1.dll"="1kmqwUNFymbZrrNccjJ8MQuvWMvU5cnqw"
+            "msvcp140_2.dll"="1T5o2nIq7yC0Ek-fsC4OKcfVON15Hvynq"
+            "msvcp140_atomic_wait.dll"="1WeoErXD6pY350zwCEtjHXH1eFm4_hmF7"
+            "concrt140.dll"="136pKNsk63UnHZ5epVlZZRM3BV3Oi7TVK"
+            "vccorlib140.dll"="18sSZ2s6Czao1tDxd6oXW_ikdvLgubvb7"
+            "System.Collections.Immutable.dll"="1n2L45lOnLL6_N4PkAQ3NQLEP1QRfpcFN"
+            "System.Memory.dll"="1GzDN-CnCZIjdedOq32JWOkdRjCjArdZJ"
+            "System.Numerics.Vectors.dll"="1tg8TAiUkSX71GCbP9wXKzv_dZK9xkb6b"
+            "System.Runtime.CompilerServices.Unsafe.dll"="1oz_k2YfNDqlvUEw1_RfF_Ot1s7n-0MpA"
+            "System.Reflection.Metadata.dll"="1fmbYi89ja3DQzl9ulCp7G52DTPhU29IN"
+          }
+          foreach($n in $files.Keys) {
+            python -m gdown $files[$n] -O ("work\game_data\"+$n)
+          }
+          Get-Item work\data.rbpack | Format-List Name,Length
+      - name: Extract boot slice
+        run: python sc_port/tools/extract_boot.py work/data.rbpack work/boot
+      - name: Compile RBR bridge
+        shell: pwsh
+        run: |
+          $csc="$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          & $csc /nologo /platform:x64 /r:System.Web.Extensions.dll /out:work\RbrBridge.exe sc_port\tools\RbrBridge.cs
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Decode boot RBR structures
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force work\boot\json | Out-Null
+          $targets=@()
+          $targets += Get-ChildItem work\boot\meta\map -Filter *.rbr | Where-Object { $_.Name -match '^(MENU_|Intro_|START_)' }
+          foreach($n in @("GameSettings.rbr","Layout.rbr","ResourceItem.rbr","Camera.rbr","Cast.rbr","RenderSettings.rbr")){
+            $p=Join-Path "work\boot\meta" $n
+            if(Test-Path $p){$targets += Get-Item $p}
+          }
+          foreach($f in $targets){
+            $safe=($f.BaseName -replace '[^A-Za-z0-9_-]','_')
+            Write-Host "BRIDGE $($f.FullName)"
+            & work\RbrBridge.exe work\game_data $f.FullName ("work\boot\json\"+$safe+".json")
+            if($LASTEXITCODE -ne 0){Write-Warning "Bridge failed for $($f.Name), continuing"}
+          }
+      - name: Produce inventory
+        shell: pwsh
+        run: |
+          Get-ChildItem work\boot -Recurse -File | Select-Object FullName,Length | Out-File work\boot\FILES.txt
+          Compress-Archive -Path work\boot\* -DestinationPath work\SmallComplex_Boot_SourceSlice.zip -CompressionLevel Optimal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SmallComplex-Boot-SourceSlice
+          path: work/SmallComplex_Boot_SourceSlice.zip
+          compression-level: 0
+          retention-days: 3
