@@ -18,13 +18,13 @@ s = sub_once(
 )
 s = sub_once(
     r'versionCode\s*=\s*\d+',
-    'versionCode = 320104',
+    'versionCode = 320105',
     s,
     "versionCode",
 )
 s = sub_once(
     r'versionName\s*=\s*"[^"]+"',
-    'versionName = "32.1-j7.4"',
+    'versionName = "32.1-j7.5"',
     s,
     "versionName",
 )
@@ -333,12 +333,128 @@ if old_leave_hint not in player:
 player = player.replace(old_leave_hint, new_leave_hint, 1)
 player_path.write_text(player, encoding="utf-8")
 
+
+# J7.5 playback reliability: explicit HTTP timeouts, bounded metadata extraction,
+# smaller back-buffer, and retry-on-connection-failure. Upstream SABR capability
+# and Shorts fixes are cherry-picked by the workflow before this patch runs.
+player_helper_path = Path("upstream/app/src/main/java/com/github/libretube/helpers/PlayerHelper.kt")
+player_helper = player_helper_path.read_text(encoding="utf-8")
+
+if "import androidx.media3.datasource.DefaultHttpDataSource" not in player_helper:
+    player_helper = player_helper.replace(
+        "import androidx.media3.datasource.DefaultDataSource\n",
+        "import androidx.media3.datasource.DefaultDataSource\n"
+        "import androidx.media3.datasource.DefaultHttpDataSource\n",
+        1,
+    )
+
+old_ds = "        val dataSourceFactory = DefaultDataSource.Factory(context)\n"
+new_ds = """        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setConnectTimeoutMs(12_000)
+            .setReadTimeoutMs(20_000)
+            .setAllowCrossProtocolRedirects(true)
+        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
+"""
+if old_ds not in player_helper:
+    raise SystemExit("patch failed: PlayerHelper data source anchor")
+player_helper = player_helper.replace(old_ds, new_ds, 1)
+player_helper = player_helper.replace(
+    ".setBackBuffer(1000 * 60 * 3, true)",
+    ".setBackBuffer(30_000, false)",
+    1,
+)
+player_helper_path.write_text(player_helper, encoding="utf-8")
+
+sabr_path = Path("upstream/app/src/main/java/com/github/libretube/player/parser/SabrClient.kt")
+sabr = sabr_path.read_text(encoding="utf-8")
+if "import java.util.concurrent.TimeUnit" not in sabr:
+    sabr = sabr.replace(
+        "import java.time.Instant\n",
+        "import java.time.Instant\nimport java.util.concurrent.TimeUnit\n",
+        1,
+    )
+
+sabr_client_anchor = """    private val client: OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+"""
+sabr_client_replacement = """    private val client: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .writeTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .addInterceptor { chain ->
+"""
+if sabr_client_anchor not in sabr:
+    raise SystemExit("patch failed: SABR OkHttp anchor")
+sabr = sabr.replace(sabr_client_anchor, sabr_client_replacement, 1)
+sabr_path.write_text(sabr, encoding="utf-8")
+
+online_path = Path("upstream/app/src/main/java/com/github/libretube/services/OnlinePlayerService.kt")
+online = online_path.read_text(encoding="utf-8")
+if "import kotlinx.coroutines.delay" not in online:
+    online = online.replace(
+        "import kotlinx.coroutines.cancelAndJoin\n",
+        "import kotlinx.coroutines.cancelAndJoin\nimport kotlinx.coroutines.delay\n",
+        1,
+    )
+if "import kotlinx.coroutines.withTimeoutOrNull" not in online:
+    online = online.replace(
+        "import kotlinx.coroutines.withContext\n",
+        "import kotlinx.coroutines.withContext\nimport kotlinx.coroutines.withTimeoutOrNull\n",
+        1,
+    )
+
+old_fetch = """            streams = withContext(Dispatchers.IO) {
+                try {
+                    MediaServiceRepository.instance.getStreams(videoId).let {
+                        DeArrowUtil.deArrowStreams(it, videoId)
+                    }
+                }  catch (e: Exception) {
+                    Log.e(TAG(), e.stackTraceToString())
+                    toastFromMainDispatcher(e.localizedMessage.orEmpty())
+                    return@withContext null
+                }
+            } ?: return@launch
+"""
+new_fetch = """            streams = withContext(Dispatchers.IO) {
+                var loaded: Streams? = null
+                var lastError: Throwable? = null
+
+                repeat(2) { attempt ->
+                    loaded = withTimeoutOrNull(25_000L) {
+                        runCatching {
+                            MediaServiceRepository.instance.getStreams(videoId).let {
+                                DeArrowUtil.deArrowStreams(it, videoId)
+                            }
+                        }.onFailure {
+                            lastError = it
+                            Log.e(TAG(), it.stackTraceToString())
+                        }.getOrNull()
+                    }
+
+                    if (loaded != null) return@withContext loaded
+                    if (attempt == 0) delay(700L)
+                }
+
+                toastFromMainDispatcher(
+                    lastError?.localizedMessage ?: "Tempo limite ao carregar o vídeo"
+                )
+                null
+            } ?: return@launch
+"""
+if old_fetch not in online:
+    raise SystemExit("patch failed: OnlinePlayerService fetch anchor")
+online = online.replace(old_fetch, new_fetch, 1)
+online_path.write_text(online, encoding="utf-8")
+
+
 # Keep attribution visible inside the patched source.
 notice = Path("upstream/TUBELITE_J7_MODIFICATIONS.md")
 notice.write_text(
     "# TubeLite J7 modifications\n\n"
     "Based on LibreTube v32.1 (GPL-3.0-or-later).\n"
-    "Changes: Android applicationId, display name, version metadata, ARMv7 targeting, direct YouTube OAuth import, isolated local profiles, personalized Home discovery, local Watch Later, and Oreo PiP/system-UI stability safeguards for Samsung Galaxy J7 Prime.\n"
+    "Changes: Android applicationId, display name, version metadata, ARMv7 targeting, direct Google library import, isolated profiles, simplified Home, Shorts tab, local Watch Later, playback timeout/SABR hardening, and Oreo PiP safeguards for Samsung Galaxy J7 Prime.\n"
     "The upstream project and copyright notices remain intact.\n",
     encoding="utf-8",
 )
