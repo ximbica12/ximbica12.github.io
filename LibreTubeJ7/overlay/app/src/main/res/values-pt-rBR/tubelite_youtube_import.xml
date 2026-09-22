@@ -7,4 +7,14 @@
     <string name="youtube_direct_import_done">Importados %1$d inscrições, %2$d playlists, %3$d vídeos de playlists e %4$d vídeos curtidos.</string>
     <string name="youtube_direct_import_cancelled">O login do Google foi cancelado.</string>
     <string name="youtube_direct_import_failed">Falha ao importar do YouTube: %1$s</string>
+
+    <string name="profiles">Perfis</string>
+    <string name="new_profile">Novo perfil</string>
+    <string name="profile_name">Nome do perfil</string>
+    <string name="profile_create">Criar</string>
+    <string name="your_subscriptions">Suas inscrições</string>
+    <string name="discovery_for_you">Discovery para você</string>
+    <string name="watch_later_local">Assistir mais tarde</string>
+    <string name="add_watch_later">Salvar em Assistir mais tarde</string>
+    <string name="remove_watch_later">Remover de Assistir mais tarde</string>
 </resources>
