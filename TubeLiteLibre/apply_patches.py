@@ -34,7 +34,8 @@ google_activity = """
 
 """
 settings_marker = """        <activity
-            android:name=".ui.activities.SettingsActivity" """
+            android:name=".ui.activities.SettingsActivity"
+"""
 if "GoogleAccountActivity" not in m:
     m = m.replace(settings_marker, google_activity + settings_marker)
 manifest.write_text(m, encoding="utf-8")
@@ -56,7 +57,8 @@ google_menu = """
 
 """
 settings_item = """    <item
-        android:id="@+id/action_settings" """
+        android:id="@+id/action_settings"
+"""
 if "action_google_account" not in menu_text:
     menu_text = menu_text.replace(settings_item, google_menu + settings_item)
 menu.write_text(menu_text, encoding="utf-8")
