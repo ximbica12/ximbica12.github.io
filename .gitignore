@@ -1,2 +1,8 @@
 node_modules
 package-lock.json
+
+# Android signing material - never commit private signing keys
+*.jks
+*.keystore
+keystore.properties
+signing-info.txt
