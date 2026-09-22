@@ -1,0 +1,58 @@
+name: Build TubeLite LibreTube Base
+
+on:
+  push:
+    branches: [tubelite-libretube-base]
+    paths:
+      - 'TubeLiteLibre/**'
+      - '.github/workflows/tubelite-libretube.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout TubeLite patches
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Clone pinned LibreTube
+        shell: bash
+        run: |
+          git clone https://github.com/libre-tube/LibreTube.git LibreTube
+          cd LibreTube
+          git checkout 69ca0ba5de14cbb391839ddb30fa4da35e8b2283
+          git submodule update --init --recursive || true
+
+      - name: Apply TubeLite patches
+        run: python3 TubeLiteLibre/apply_patches.py LibreTube
+
+      - name: Build Android 8 debug APK
+        working-directory: LibreTube
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Prepare APK
+        shell: bash
+        run: |
+          cp LibreTube/app/build/outputs/apk/debug/app-debug.apk TubeLite-J7-LibreBase-Android8-debug.apk
+          ls -lh TubeLite-J7-LibreBase-Android8-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TubeLite-J7-LibreBase-Android8
+          path: TubeLite-J7-LibreBase-Android8-debug.apk
+          if-no-files-found: error
+          retention-days: 30
