@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/homeFragment"
+        android:icon="@drawable/ic_home"
+        android:title="@string/startpage" />
+
+    <item
+        android:id="@+id/shortsFragment"
+        android:icon="@drawable/ic_tubelite_shorts"
+        android:title="@string/shorts_tab" />
+
+    <item
+        android:id="@+id/trendsFragment"
+        android:icon="@drawable/ic_trending"
+        android:title="@string/trends"
+        android:visible="false" />
+
+    <item
+        android:id="@+id/subscriptionsFragment"
+        android:icon="@drawable/ic_subscriptions"
+        android:title="@string/subscriptions" />
+
+    <item
+        android:id="@+id/libraryFragment"
+        android:icon="@drawable/ic_library"
+        android:title="@string/library" />
+
+</menu>
