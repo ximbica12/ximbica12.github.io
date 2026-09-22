@@ -4,7 +4,7 @@
     <string name="youtube_direct_import_summary">Sign in with Google and copy subscriptions, playlists and liked videos. No CSV.</string>
     <string name="youtube_direct_import_start">Choose the Google account whose YouTube library you want to import.</string>
     <string name="youtube_direct_import_working">Importing your YouTube library… This can take a few minutes.</string>
-    <string name="youtube_direct_import_done">Imported %1$d subscriptions, %2$d playlists, %3$d playlist videos and %4$d liked videos.</string>
+    <string name="youtube_direct_import_done">Imported %1$d subscriptions, %2$d playlists, %3$d playlist videos and %4$d liked videos. Google does not expose its Watch Later playlist; TubeLite keeps a local Watch Later for this profile.</string>
     <string name="youtube_direct_import_cancelled">Google sign-in was cancelled.</string>
     <string name="youtube_direct_import_failed">YouTube import failed: %1$s</string>
 
@@ -13,8 +13,12 @@
     <string name="profile_name">Profile name</string>
     <string name="profile_create">Create</string>
     <string name="your_subscriptions">Your subscriptions</string>
-    <string name="discovery_for_you">Discovery for you</string>
+    <string name="discovery_for_you">For you</string>
     <string name="watch_later_local">Watch later</string>
     <string name="add_watch_later">Save to Watch later</string>
     <string name="remove_watch_later">Remove from Watch later</string>
+    <string name="your_channels">Your channels</string>
+    <string name="your_channels_count">Subscribed channels (%1$d)</string>
+    <string name="shorts_tab">Shorts</string>
+    <string name="shorts_empty">No Shorts cached yet. Pull to refresh the subscriptions feed.</string>
 </resources>
