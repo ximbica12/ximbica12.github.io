@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#0F0F0F</color>
-    <color name="surface">#181818</color>
-    <color name="surface2">#252525</color>
-    <color name="text">#F1F1F1</color>
-    <color name="muted">#AAAAAA</color>
-    <color name="accent">#FF0033</color>
+    <color name="black">#101014</color>
+    <color name="surface">#1C1B1F</color>
+    <color name="surface2">#27252C</color>
+    <color name="text">#E6E1E5</color>
+    <color name="muted">#CAC4D0</color>
+    <color name="accent">#D0BCFF</color>
+
+    <color name="app_background">#101014</color>
+    <color name="app_surface">#1C1B1F</color>
+    <color name="app_surface_2">#27252C</color>
+    <color name="app_primary">#D0BCFF</color>
+    <color name="app_primary_container">#4F378B</color>
 </resources>
