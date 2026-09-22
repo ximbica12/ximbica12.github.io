@@ -48,11 +48,10 @@ p.write_text(s, encoding="utf-8")
 # Keep attribution visible inside the patched source.
 notice = Path("upstream/TUBELITE_J7_MODIFICATIONS.md")
 notice.write_text(
-    """# TubeLite J7 modifications\n\n"
+    "# TubeLite J7 modifications\n\n"
     "Based on LibreTube v32.1 (GPL-3.0-or-later).\n"
     "Changes: Android applicationId, display name, version metadata, and ABI targeting for Samsung Galaxy J7 Prime / armeabi-v7a.\n"
-    "The upstream project and copyright notices remain intact.\n"
-    """,
+    "The upstream project and copyright notices remain intact.\n",
     encoding="utf-8",
 )
 
