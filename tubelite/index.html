@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TubeLite J7 — Cliente Android para YouTube</title>
+  <meta name="description" content="TubeLite J7 é um cliente Android independente, baseado em LibreTube, com foco em dispositivos Android 8 e login opcional com Google.">
+  <link rel="stylesheet" href="/tubelite/styles.css">
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-inner">
+    <a class="brand" href="/tubelite/"><span class="mark">▶</span><span>TubeLite J7</span></a>
+    <div class="nav-links">
+      <a href="/tubelite/">Início</a>
+      <a href="/tubelite/privacy/">Privacidade</a>
+      <a href="/tubelite/terms/">Termos</a>
+    </div>
+  </div>
+</nav>
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow"><span class="dot"></span> Projeto Android independente e open source</div>
+    <h1>TubeLite J7</h1>
+    <p class="lead">Cliente Android independente para assistir conteúdo do YouTube, baseado em LibreTube e adaptado para dispositivos mais antigos, incluindo Android 8. O app oferece reprodução de vídeo, pesquisa, inscrições, playlists e recursos de conta.</p>
+    <div class="actions">
+      <a class="btn primary" href="https://github.com/ximbica12/ximbica12.github.io/tree/libretube-j7">Código-fonte no GitHub</a>
+      <a class="btn" href="/tubelite/privacy/">Política de Privacidade</a>
+    </div>
+    <p class="meta">TubeLite J7 não é afiliado, patrocinado ou endossado pelo Google ou YouTube.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="grid">
+    <article class="card">
+      <h3>Android 8+</h3>
+      <p>Construído com foco em aparelhos antigos e compatibilidade a partir do Android 8.0.</p>
+    </article>
+    <article class="card">
+      <h3>Login opcional com Google</h3>
+      <p>Quando o usuário escolhe conectar sua Conta Google, a autenticação acontece pelo fluxo oficial OAuth do Google.</p>
+    </article>
+    <article class="card">
+      <h3>Somente leitura</h3>
+      <p>O acesso Google planejado usa o escopo <code>youtube.readonly</code>, destinado a consultar dados da conta do YouTube sem editar ou excluir conteúdo.</p>
+    </article>
+  </div>
+
+  <section>
+    <h2>Como o login com Google funciona</h2>
+    <p>O TubeLite J7 não solicita nem recebe a senha da sua Conta Google. Ao tocar em “Entrar com Google”, o usuário é encaminhado ao seletor e à tela de consentimento oficiais do Google. O Google então fornece ao aplicativo uma autorização OAuth limitada aos escopos que o usuário aprovou.</p>
+    <p>O objetivo do acesso à YouTube Data API é permitir recursos vinculados à própria conta do usuário, como identificação do canal, inscrições, playlists e outros dados de leitura necessários aos recursos oferecidos no aplicativo.</p>
+    <div class="notice"><strong>Controle do usuário:</strong> conectar uma Conta Google é opcional. A autorização pode ser revogada a qualquer momento pelo aplicativo ou pelas configurações de segurança da Conta Google.</div>
+  </section>
+
+  <section>
+    <h2>Privacidade e transparência</h2>
+    <p>A política abaixo explica quais dados do Google podem ser acessados, para qual finalidade, onde ficam armazenados e como o usuário pode remover o acesso.</p>
+    <div class="actions">
+      <a class="btn" href="/tubelite/privacy/">Ler Política de Privacidade</a>
+      <a class="btn" href="/tubelite/terms/">Ler Termos de Serviço</a>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <strong>TubeLite J7</strong> · Projeto independente baseado em LibreTube, distribuído de acordo com a licença GPL aplicável ao código derivado.<br>
+    Google, YouTube e suas marcas pertencem aos respectivos proprietários.
+  </div>
+</footer>
+</body>
+</html>
