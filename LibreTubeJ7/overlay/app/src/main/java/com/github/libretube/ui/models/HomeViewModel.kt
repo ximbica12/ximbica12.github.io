@@ -51,7 +51,7 @@ class HomeViewModel : ViewModel() {
     val loadedSuccessfully: MutableLiveData<Boolean> = MutableLiveData(false)
 
     private val sections get() =
-        listOf(feed, continueWatching, watchLater, playlists, discovery, trending, bookmarks)
+        listOf(feed, continueWatching, playlists, watchLater, discovery)
 
     private var loadHomeJob: Job? = null
 
@@ -66,16 +66,17 @@ class HomeViewModel : ViewModel() {
         loadHomeJob?.cancel()
         loadHomeJob = viewModelScope.launch {
             val result = async {
+                // Keep the J7 home personal and lightweight. Trending/bookmarks are
+                // still available elsewhere, but are not fetched on every Home load.
                 awaitAll(
-                    // TubeLite J7 keeps personal sections visible by default.
                     async { loadFeed(subscriptionsViewModel) },
                     async { loadVideosToContinueWatching() },
-                    async { loadWatchLater() },
                     async { loadPlaylists() },
-                    async { loadDiscovery() },
-                    async { if (visibleItems.contains(TRENDING)) loadTrending(context) },
-                    async { if (visibleItems.contains(BOOKMARKS)) loadBookmarks() }
+                    async { loadWatchLater() }
                 )
+                // Discovery performs stream extraction, so do it after the cheap/local
+                // sections instead of competing with them on a low-memory device.
+                loadDiscovery()
                 loadedSuccessfully.value = sections.any { it.value != null }
                 isLoading.value = false
             }
@@ -145,7 +146,7 @@ class HomeViewModel : ViewModel() {
         runSafely(
             onSuccess = { videos -> discovery.updateIfChanged(videos) },
             ioBlock = {
-                val seeds = DatabaseHelper.getWatchHistoryPage(1, 8).take(3)
+                val seeds = DatabaseHelper.getWatchHistoryPage(1, 6).take(2)
                 if (seeds.isEmpty()) return@runSafely emptyList()
 
                 val seedIds = seeds.map { it.videoId }.toSet()
@@ -156,7 +157,7 @@ class HomeViewModel : ViewModel() {
                         MediaServiceRepository.instance
                             .getStreams(seed.videoId)
                             .relatedStreams
-                            .take(12)
+                            .take(8)
                     }.getOrDefault(emptyList())
                     candidates += related
                 }
@@ -167,7 +168,7 @@ class HomeViewModel : ViewModel() {
                         .filter { it.url !in seedIds },
                     hideWatched = true,
                     showUpcoming = showUpcoming
-                ).take(20)
+                ).take(16)
             }
         )
     }
