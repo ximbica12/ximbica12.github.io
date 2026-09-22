@@ -80,6 +80,30 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         binding.watchLaterRV.adapter = watchLaterAdapter
         binding.discoveryRV.adapter = discoveryAdapter
 
+        // Personal sections first; the generic LibreTube discovery/trending layout
+        // is intentionally de-emphasized for the J7 build.
+        val sectionsParent = binding.featuredTV.parent as? android.view.ViewGroup
+        sectionsParent?.let { parent ->
+            val preferredOrder = listOf(
+                binding.featuredTV,
+                binding.featuredRV,
+                binding.watchingTV,
+                binding.watchingRV,
+                binding.playlistsTV,
+                binding.playlistsRV,
+                binding.watchLaterTV,
+                binding.watchLaterRV,
+                binding.discoveryTV,
+                binding.discoveryRV
+            )
+            preferredOrder.forEach { parent.removeView(it) }
+            preferredOrder.forEach { parent.addView(it) }
+        }
+        binding.trendingTV.isGone = true
+        binding.trendingRV.isGone = true
+        binding.bookmarksTV.isGone = true
+        binding.bookmarksRV.isGone = true
+
         with(homeViewModel) {
             trending.observe(viewLifecycleOwner, ::showTrending)
             feed.observe(viewLifecycleOwner, ::showFeed)
