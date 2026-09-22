@@ -18,13 +18,13 @@ s = sub_once(
 )
 s = sub_once(
     r'versionCode\s*=\s*\d+',
-    'versionCode = 320102',
+    'versionCode = 320103',
     s,
     "versionCode",
 )
 s = sub_once(
     r'versionName\s*=\s*"[^"]+"',
-    'versionName = "32.1-j7.2"',
+    'versionName = "32.1-j7.3"',
     s,
     "versionName",
 )
@@ -80,7 +80,10 @@ helper_anchor = "import com.github.libretube.helpers.PreferenceHelper\n"
 if "import com.github.libretube.helpers.YouTubeDirectImport" not in settings:
     settings = settings.replace(
         helper_anchor,
-        helper_anchor + "import com.github.libretube.helpers.YouTubeDirectImport\n",
+        helper_anchor
+        + "import com.github.libretube.helpers.ProfileManager\n"
+        + "import com.github.libretube.helpers.YouTubeDirectImport\n"
+        + "import com.github.libretube.db.DatabaseHolder\n",
         1,
     )
 
@@ -174,6 +177,19 @@ oauth_methods = r'''
     }
 
     private fun handleYouTubeAuthorization(result: AuthorizationResult) {
+        val googleEmail = runCatching {
+            @Suppress("DEPRECATION")
+            result.toGoogleSignInAccount()?.email
+        }.getOrNull()
+
+        if (!googleEmail.isNullOrBlank()) {
+            val targetProfile = ProfileManager.ensureProfileForGoogleAccount(googleEmail)
+            if (targetProfile.id != ProfileManager.getActiveProfileId()) {
+                DatabaseHolder.switchProfile(targetProfile.id)
+                PreferenceHelper.reloadAuthenticationPreferences(requireContext())
+            }
+        }
+
         val accessToken = result.accessToken
         if (accessToken.isNullOrBlank()) {
             showYouTubeImportError(
@@ -253,12 +269,32 @@ if 'app:key="youtube_direct_import"' not in xml:
 xml_path.write_text(xml, encoding="utf-8")
 
 
+
+# Show the active local profile below the app name.
+main_path = Path("upstream/app/src/main/java/com/github/libretube/ui/activities/MainActivity.kt")
+main = main_path.read_text(encoding="utf-8")
+if "import com.github.libretube.helpers.ProfileManager" not in main:
+    main = main.replace(
+        "import com.github.libretube.helpers.PreferenceHelper\n",
+        "import com.github.libretube.helpers.PreferenceHelper\n"
+        "import com.github.libretube.helpers.ProfileManager\n",
+        1,
+    )
+if "binding.toolbar.subtitle = ProfileManager.getActiveProfile().name" not in main:
+    main = main.replace(
+        "binding.toolbar.title = ThemeHelper.getStyledAppName(this)",
+        "binding.toolbar.title = ThemeHelper.getStyledAppName(this)\n"
+        "        binding.toolbar.subtitle = ProfileManager.getActiveProfile().name",
+        1,
+    )
+main_path.write_text(main, encoding="utf-8")
+
 # Keep attribution visible inside the patched source.
 notice = Path("upstream/TUBELITE_J7_MODIFICATIONS.md")
 notice.write_text(
     "# TubeLite J7 modifications\n\n"
     "Based on LibreTube v32.1 (GPL-3.0-or-later).\n"
-    "Changes: Android applicationId, display name, version metadata, ARMv7 targeting, and direct YouTube OAuth library import for Samsung Galaxy J7 Prime.\n"
+    "Changes: Android applicationId, display name, version metadata, ARMv7 targeting, direct YouTube OAuth import, isolated local profiles, personalized Home discovery, and local Watch Later for Samsung Galaxy J7 Prime.\n"
     "The upstream project and copyright notices remain intact.\n",
     encoding="utf-8",
 )
