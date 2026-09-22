@@ -4,7 +4,7 @@
     <string name="youtube_direct_import_summary">Entre com o Google e copie inscrições, playlists e vídeos curtidos. Sem CSV.</string>
     <string name="youtube_direct_import_start">Escolha a conta Google cuja biblioteca do YouTube você quer importar.</string>
     <string name="youtube_direct_import_working">Importando sua biblioteca do YouTube… Isso pode levar alguns minutos.</string>
-    <string name="youtube_direct_import_done">Importados %1$d inscrições, %2$d playlists, %3$d vídeos de playlists e %4$d vídeos curtidos.</string>
+    <string name="youtube_direct_import_done">Importados %1$d inscrições, %2$d playlists, %3$d vídeos de playlists e %4$d vídeos curtidos. O Google não disponibiliza a lista Assistir mais tarde pela API; o TubeLite mantém uma lista local neste perfil.</string>
     <string name="youtube_direct_import_cancelled">O login do Google foi cancelado.</string>
     <string name="youtube_direct_import_failed">Falha ao importar do YouTube: %1$s</string>
 
@@ -13,8 +13,12 @@
     <string name="profile_name">Nome do perfil</string>
     <string name="profile_create">Criar</string>
     <string name="your_subscriptions">Suas inscrições</string>
-    <string name="discovery_for_you">Discovery para você</string>
+    <string name="discovery_for_you">Para você</string>
     <string name="watch_later_local">Assistir mais tarde</string>
     <string name="add_watch_later">Salvar em Assistir mais tarde</string>
     <string name="remove_watch_later">Remover de Assistir mais tarde</string>
+    <string name="your_channels">Seus canais</string>
+    <string name="your_channels_count">Canais inscritos (%1$d)</string>
+    <string name="shorts_tab">Shorts</string>
+    <string name="shorts_empty">Ainda não há Shorts no cache. Puxe para atualizar o feed de inscrições.</string>
 </resources>
