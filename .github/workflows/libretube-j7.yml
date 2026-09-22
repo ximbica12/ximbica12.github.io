@@ -24,6 +24,13 @@ jobs:
         run: |
           git clone --depth 1 --branch v32.1 https://github.com/libre-tube/LibreTube.git upstream
 
+      - name: Backport upstream LibreTube fixes
+        working-directory: upstream
+        run: |
+          git fetch --depth=120 origin master
+          git -c user.name="TubeLite CI" -c user.email="ci@localhost" cherry-pick 5be98d384529c528f08d6fd245a8d1f96d77ab40
+          git -c user.name="TubeLite CI" -c user.email="ci@localhost" cherry-pick 1dec6f68744f4585c43c6c853e4690218ea44b01
+
       - name: Apply J7 patch
         run: |
           cp -R LibreTubeJ7/overlay/. upstream/
@@ -46,18 +53,18 @@ jobs:
         run: |
           APK="$(find upstream/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
           test -n "$APK"
-          cp "$APK" TubeLite-J7-LibreTube-v32.1-j7.4-unsigned.apk
+          cp "$APK" TubeLite-J7-LibreTube-v32.1-j7.5-unsigned.apk
 
       - name: Archive patched source
         run: |
           rm -rf upstream/.git
-          zip -qr TubeLite-J7-LibreTube-v32.1-j7.4-source.zip upstream
+          zip -qr TubeLite-J7-LibreTube-v32.1-j7.5-source.zip upstream
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: TubeLite-J7-LibreTube-APK
-          path: TubeLite-J7-LibreTube-v32.1-j7.4-unsigned.apk
+          path: TubeLite-J7-LibreTube-v32.1-j7.5-unsigned.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -65,6 +72,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: TubeLite-J7-LibreTube-Source
-          path: TubeLite-J7-LibreTube-v32.1-j7.4-source.zip
+          path: TubeLite-J7-LibreTube-v32.1-j7.5-source.zip
           if-no-files-found: error
           retention-days: 30
