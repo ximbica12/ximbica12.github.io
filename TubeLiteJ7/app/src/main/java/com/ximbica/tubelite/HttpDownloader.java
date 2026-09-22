@@ -10,8 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import javax.annotation.Nonnull;
-
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
@@ -31,7 +29,7 @@ public final class HttpDownloader extends Downloader {
     }
 
     @Override
-    public Response execute(@Nonnull Request request) throws IOException, ReCaptchaException {
+    public Response execute(Request request) throws IOException, ReCaptchaException {
         okhttp3.Request.Builder builder = new okhttp3.Request.Builder().url(request.url());
 
         boolean hasUserAgent = false;
