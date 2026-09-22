@@ -1,6 +1,9 @@
 package com.ximbica.tubelite;
 
+import android.app.AlertDialog;
+import android.app.PendingIntent;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -25,6 +28,9 @@ import androidx.media3.ui.PlayerView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import org.schabi.newpipe.extractor.InfoItem;
 import org.schabi.newpipe.extractor.MediaFormat;
 import org.schabi.newpipe.extractor.NewPipe;
@@ -44,8 +50,13 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+
 public final class MainActivity extends AppCompatActivity {
     private final ExecutorService io = Executors.newFixedThreadPool(3);
+    private final OkHttpClient apiHttp = new OkHttpClient();
 
     private RecyclerView recycler;
     private VideoAdapter adapter;
@@ -53,6 +64,8 @@ public final class MainActivity extends AppCompatActivity {
     private TextView nowTitle;
     private TextView nowChannel;
     private TextView microgBadge;
+    private Button accountButton;
+    private GoogleYouTubeAuth googleAuth;
     private EditText searchBox;
     private LinearLayout playerPanel;
     private PlayerView playerView;
@@ -70,6 +83,7 @@ public final class MainActivity extends AppCompatActivity {
 
         buildUi();
         updateMicroGStatus();
+        initializeGoogleAuth();
 
         Uri deepLink = getIntent() == null ? null : getIntent().getData();
         if (deepLink != null && ("http".equals(deepLink.getScheme()) || "https".equals(deepLink.getScheme()))) {
@@ -106,6 +120,19 @@ public final class MainActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         badgeLp.setMargins(dp(8), 0, 0, 0);
         top.addView(microgBadge, badgeLp);
+
+        accountButton = new Button(this);
+        accountButton.setText("Entrar");
+        accountButton.setAllCaps(false);
+        accountButton.setTextSize(11);
+        accountButton.setMinWidth(0);
+        accountButton.setMinimumWidth(0);
+        accountButton.setPadding(dp(8), 0, dp(8), 0);
+        LinearLayout.LayoutParams accountLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(36));
+        accountLp.setMargins(dp(6), 0, 0, 0);
+        top.addView(accountButton, accountLp);
+        accountButton.setOnClickListener(v -> showAccountMenu());
 
         LinearLayout searchRow = new LinearLayout(this);
         searchRow.setPadding(dp(10), 0, dp(10), dp(8));
@@ -223,8 +250,10 @@ public final class MainActivity extends AppCompatActivity {
         microgBadge.setOnClickListener(v -> Toast.makeText(
                 this,
                 revancedMicroG
-                        ? "ReVanced GmsCore detectado. O cliente funciona sem conta; integração OAuth pode ser adicionada sem trocar o app."
-                        : "microG/GmsCore não detectado. O modo visitante continua funcionando normalmente.",
+                        ? "ReVanced GmsCore detectado. O login do TubeLite usa a autorização OAuth oficial quando Google Play Services compatível está disponível."
+                        : standardGms
+                        ? "Google Play Services detectado. Login OAuth disponível no botão de conta."
+                        : "Google Play Services não detectado. O modo visitante continua funcionando normalmente.",
                 Toast.LENGTH_LONG
         ).show());
     }
@@ -236,6 +265,149 @@ public final class MainActivity extends AppCompatActivity {
         } catch (PackageManager.NameNotFoundException e) {
             return false;
         }
+    }
+
+    private void initializeGoogleAuth() {
+        googleAuth = new GoogleYouTubeAuth(this, new GoogleYouTubeAuth.Listener() {
+            @Override
+            public void onAuthorized(GoogleYouTubeAuth.Session session) {
+                String label = session.getDisplayName();
+                if (label == null || label.trim().isEmpty()) {
+                    label = session.getAccountName();
+                }
+                accountButton.setText("✓ " + compactAccountLabel(label));
+                loadYoutubeProfile(session.getAccessToken());
+            }
+
+            @Override
+            public void onResolutionRequired(PendingIntent pendingIntent) {
+                launchGoogleAuthorization(pendingIntent);
+            }
+
+            @Override
+            public void onSignedOut() {
+                accountButton.setText("Entrar");
+            }
+
+            @Override
+            public void onError(String message) {
+                accountButton.setText("Entrar");
+                status.setText("OAuth Google: " + message);
+            }
+        });
+
+        googleAuth.restoreSilently();
+    }
+
+    private void showAccountMenu() {
+        if (googleAuth == null) return;
+
+        List<String> known = googleAuth.getKnownAccounts();
+        String current = googleAuth.getCurrentAccountName();
+
+        List<String> labels = new ArrayList<>();
+        List<Runnable> actions = new ArrayList<>();
+
+        labels.add("+ Adicionar / trocar conta Google");
+        actions.add(() -> googleAuth.chooseAccount());
+
+        for (String account : known) {
+            if (account.equals(current)) continue;
+            labels.add("Usar " + account);
+            actions.add(() -> googleAuth.switchAccount(account));
+        }
+
+        if (current != null && !current.isEmpty()) {
+            labels.add("Desconectar " + current);
+            actions.add(() -> googleAuth.revokeCurrent());
+        }
+
+        String title = current == null
+                ? "Conta do YouTube"
+                : "Conta atual: " + current;
+
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                    if (which >= 0 && which < actions.size()) {
+                        actions.get(which).run();
+                    }
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private void launchGoogleAuthorization(PendingIntent pendingIntent) {
+        try {
+            startIntentSenderForResult(
+                    pendingIntent.getIntentSender(),
+                    GoogleYouTubeAuth.REQUEST_AUTHORIZATION,
+                    null,
+                    0,
+                    0,
+                    0
+            );
+        } catch (IntentSender.SendIntentException e) {
+            status.setText("Não foi possível abrir o login Google: " + e.getMessage());
+        }
+    }
+
+    private void loadYoutubeProfile(String accessToken) {
+        if (accessToken == null || accessToken.isEmpty()) return;
+
+        io.submit(() -> {
+            Request request = new Request.Builder()
+                    .url("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true&maxResults=1")
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Accept", "application/json")
+                    .build();
+
+            try (Response response = apiHttp.newCall(request).execute()) {
+                if (!response.isSuccessful()) {
+                    int code = response.code();
+                    runOnUiThread(() -> status.setText(
+                            "Google conectado, mas YouTube Data API respondeu HTTP " + code
+                                    + ". Confira se a API v3 e o escopo youtube.readonly estão ativos."
+                    ));
+                    return;
+                }
+
+                String json = response.body() == null ? "{}" : response.body().string();
+                JSONObject root = new JSONObject(json);
+                JSONArray items = root.optJSONArray("items");
+                String channelTitle = "";
+
+                if (items != null && items.length() > 0) {
+                    JSONObject snippet = items.optJSONObject(0) == null
+                            ? null
+                            : items.optJSONObject(0).optJSONObject("snippet");
+                    if (snippet != null) {
+                        channelTitle = snippet.optString("title", "");
+                    }
+                }
+
+                final String title = channelTitle;
+                runOnUiThread(() -> {
+                    if (!title.isEmpty()) {
+                        accountButton.setText("✓ " + compactAccountLabel(title));
+                        status.setText("YouTube conectado • " + title);
+                    } else {
+                        status.setText("Conta Google autorizada para YouTube.");
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> status.setText(
+                        "Conta Google autorizada; falha ao consultar perfil: "
+                                + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage())
+                ));
+            }
+        });
+    }
+
+    private String compactAccountLabel(String value) {
+        if (value == null || value.trim().isEmpty()) return "Conta";
+        String clean = value.trim();
+        return clean.length() <= 12 ? clean : clean.substring(0, 11) + "…";
     }
 
     private void runSearch() {
@@ -403,6 +575,18 @@ public final class MainActivity extends AppCompatActivity {
         }
         final String finalMsg = prefix + ": " + msg;
         runOnUiThread(() -> status.setText(finalMsg));
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == GoogleYouTubeAuth.REQUEST_AUTHORIZATION) {
+            if (resultCode == RESULT_OK && data != null && googleAuth != null) {
+                googleAuth.handleResolutionResult(data);
+            } else {
+                status.setText("Login Google cancelado.");
+            }
+        }
     }
 
     @Override
