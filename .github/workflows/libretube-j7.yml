@@ -46,18 +46,18 @@ jobs:
         run: |
           APK="$(find upstream/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
           test -n "$APK"
-          cp "$APK" TubeLite-J7-LibreTube-v32.1-j7.2-unsigned.apk
+          cp "$APK" TubeLite-J7-LibreTube-v32.1-j7.3-unsigned.apk
 
       - name: Archive patched source
         run: |
           rm -rf upstream/.git
-          zip -qr TubeLite-J7-LibreTube-v32.1-j7.2-source.zip upstream
+          zip -qr TubeLite-J7-LibreTube-v32.1-j7.3-source.zip upstream
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: TubeLite-J7-LibreTube-APK
-          path: TubeLite-J7-LibreTube-v32.1-j7.2-unsigned.apk
+          path: TubeLite-J7-LibreTube-v32.1-j7.3-unsigned.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -65,6 +65,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: TubeLite-J7-LibreTube-Source
-          path: TubeLite-J7-LibreTube-v32.1-j7.2-source.zip
+          path: TubeLite-J7-LibreTube-v32.1-j7.3-source.zip
           if-no-files-found: error
           retention-days: 30
