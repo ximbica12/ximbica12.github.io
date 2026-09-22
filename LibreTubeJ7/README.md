@@ -12,7 +12,7 @@ This branch builds a J7-focused derivative from the official LibreTube source.
 - app name: TubeLite J7
 - minSdk remains 26 (Android 8.0)
 - ARM ABI restricted to armeabi-v7a
-- version: 32.1-j7.2
+- version: 32.1-j7.3
 - release build generated from pinned upstream source
 - patched source archive is uploaded together with the APK for GPL compliance
 
@@ -38,3 +38,21 @@ O fluxo usa OAuth 2.0 somente leitura (`youtube.readonly`) e importa:
 Histórico e Assistir mais tarde não são expostos pela YouTube Data API e continuam dependendo de exportação/Takeout.
 
 Enquanto o projeto OAuth estiver em modo de teste, somente contas adicionadas como usuários de teste no Google Auth Platform conseguem autorizar. Para uso público, o app precisa cumprir a verificação OAuth aplicável.
+
+
+## J7.3 — Perfis e Home personalizada
+
+- perfis locais múltiplos;
+- cada perfil usa um banco Room separado, isolando inscrições, playlists, histórico, progresso e Watch Later;
+- conta Google importada é associada automaticamente a um perfil;
+- ao importar uma segunda conta Google, o app reutiliza o perfil correspondente ou cria um novo;
+- perfil ativo aparece como subtítulo da barra superior e pode ser trocado pelo novo botão de perfil;
+- Home prioriza **Suas inscrições**, **Continuar assistindo**, **Assistir mais tarde**, playlists e **Discovery para você**;
+- Discovery é calculado localmente a partir dos vídeos recentes do perfil e dos vídeos relacionados retornados pelo extrator, sem depender do feed Home privado do YouTube;
+- **Assistir mais tarde** é uma playlist local especial por perfil e ganhou ação rápida no menu de cada vídeo;
+- Trending continua disponível, mas deixa de ser o foco principal da Home.
+
+### Limites da API do YouTube
+
+O feed Home personalizado do YouTube não é exposto atualmente pela YouTube Data API.
+As coleções oficiais Watch History e Watch Later deixaram de ser recuperáveis pela API em 2016, portanto o TubeLite mantém histórico e Watch Later localmente por perfil.
