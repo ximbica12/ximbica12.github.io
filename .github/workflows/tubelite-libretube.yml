@@ -37,22 +37,24 @@ jobs:
       - name: Apply TubeLite patches
         run: python3 TubeLiteLibre/apply_patches.py LibreTube
 
-      - name: Build Android 8 debug APK
+      - name: Build Android 8 unsigned release APK
         working-directory: LibreTube
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon --stacktrace :app:assembleDebug
+          ./gradlew --no-daemon --stacktrace :app:assembleRelease
 
-      - name: Prepare APK
+      - name: Prepare unsigned release APK
         shell: bash
         run: |
-          cp LibreTube/app/build/outputs/apk/debug/app-debug.apk TubeLite-J7-LibreBase-Android8-debug.apk
-          ls -lh TubeLite-J7-LibreBase-Android8-debug.apk
+          APK="$(find LibreTube/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          cp "$APK" TubeLite-J7-LibreBase-v0.4.0-Android8-unsigned.apk
+          ls -lh TubeLite-J7-LibreBase-v0.4.0-Android8-unsigned.apk
 
-      - name: Upload APK
+      - name: Upload unsigned release APK
         uses: actions/upload-artifact@v4
         with:
-          name: TubeLite-J7-LibreBase-Android8
-          path: TubeLite-J7-LibreBase-Android8-debug.apk
+          name: TubeLite-J7-LibreBase-Unsigned
+          path: TubeLite-J7-LibreBase-v0.4.0-Android8-unsigned.apk
           if-no-files-found: error
           retention-days: 30
