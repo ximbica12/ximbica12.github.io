@@ -48,7 +48,7 @@ class ProfileDialog : DialogFragment() {
             .setTitle(R.string.new_profile)
             .setView(input)
             .setNegativeButton(R.string.cancel, null)
-            .setPositiveButton(R.string.create) { _, _ ->
+            .setPositiveButton(R.string.profile_create) { _, _ ->
                 val profile = ProfileManager.createProfile(input.text?.toString().orEmpty())
                 switchTo(profile)
             }
