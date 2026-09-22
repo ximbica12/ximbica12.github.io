@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">TubeLite J7</string>
+    <string name="google_android_oauth_client_id" translatable="false">819813319296-g6uhep8g78kaa1t257ncb2npbjiivuhg.apps.googleusercontent.com</string>
+    <string name="youtube_readonly_scope" translatable="false">https://www.googleapis.com/auth/youtube.readonly</string>
 </resources>
