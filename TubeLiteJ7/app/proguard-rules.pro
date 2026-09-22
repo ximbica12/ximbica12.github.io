@@ -1,0 +1,4 @@
+-keep class org.schabi.newpipe.extractor.** { *; }
+-dontwarn org.mozilla.javascript.**
+-dontwarn javax.annotation.**
+-keepattributes *Annotation*
