@@ -157,6 +157,20 @@ player_helper = player_helper.replace(
 player_helper_path.write_text(player_helper, encoding="utf-8")
 
 
+
+# Rebrand user-visible resource text only. Source/license attribution remains
+# LibreTube and GPL notices are intentionally untouched.
+for strings_path in [
+    Path("upstream/app/src/main/res/values/strings.xml"),
+    Path("upstream/app/src/main/res/values-pt/strings.xml"),
+    Path("upstream/app/src/main/res/values-pt-rBR/strings.xml"),
+]:
+    if strings_path.exists():
+        visible_strings = strings_path.read_text(encoding="utf-8")
+        visible_strings = visible_strings.replace("LibreTube", "NexoTube")
+        strings_path.write_text(visible_strings, encoding="utf-8")
+
+
 # Add a direct Google -> LibreTube import action to the existing import/export screen.
 settings_path = Path("upstream/app/src/main/java/com/github/libretube/ui/preferences/BackupRestoreSettings.kt")
 settings = settings_path.read_text(encoding="utf-8")
