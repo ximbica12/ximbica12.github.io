@@ -20,13 +20,13 @@ s = sub_once(
 )
 s = sub_once(
     r'versionCode\s*=\s*\d+',
-    'versionCode = 320107',
+    'versionCode = 320108',
     s,
     "versionCode",
 )
 s = sub_once(
     r'versionName\s*=\s*"[^"]+"',
-    'versionName = "32.1-j7.7"',
+    'versionName = "32.1-j7.8"',
     s,
     "versionName",
 )
@@ -696,6 +696,17 @@ player_helper = player_helper.replace(
     ".setBackBuffer(30_000, false)",
     1,
 )
+# J7.8 startup buffer: start sooner once the manifest/stream has been resolved.
+player_helper = player_helper.replace(
+    "DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,",
+    "1_500,",
+    1,
+)
+player_helper = player_helper.replace(
+    "DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS",
+    "3_000",
+    1,
+)
 player_helper_path.write_text(player_helper, encoding="utf-8")
 
 sabr_path = Path("upstream/app/src/main/java/com/github/libretube/player/parser/SabrClient.kt")
@@ -725,6 +736,13 @@ sabr_path.write_text(sabr, encoding="utf-8")
 
 online_path = Path("upstream/app/src/main/java/com/github/libretube/services/OnlinePlayerService.kt")
 online = online_path.read_text(encoding="utf-8")
+if "import com.github.libretube.helpers.StreamPrefetchCache\\n" not in online:
+    online = online.replace(
+        "import com.github.libretube.helpers.ProxyHelper\\n",
+        "import com.github.libretube.helpers.ProxyHelper\\n"
+        "import com.github.libretube.helpers.StreamPrefetchCache\\n",
+        1,
+    )
 if "import kotlinx.coroutines.delay" not in online:
     online = online.replace(
         "import kotlinx.coroutines.cancelAndJoin\n",
@@ -740,7 +758,7 @@ if "import kotlinx.coroutines.withTimeoutOrNull" not in online:
 
 old_fetch = """            streams = withContext(Dispatchers.IO) {
                 try {
-                    MediaServiceRepository.instance.getStreams(videoId).let {
+                    StreamPrefetchCache.getOrFetch(videoId).let {
                         DeArrowUtil.deArrowStreams(it, videoId)
                     }
                 }  catch (e: Exception) {
