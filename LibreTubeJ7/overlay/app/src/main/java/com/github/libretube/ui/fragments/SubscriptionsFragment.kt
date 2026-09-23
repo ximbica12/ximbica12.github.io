@@ -76,7 +76,9 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
         }
 
     override fun setLayoutManagers(gridItems: Int) {
-        _binding?.subFeed?.layoutManager = GridLayoutManager(context, gridItems)
+        // YouTube-style feed: one large video card per row. It is also cheaper
+        // to render on the J7 than a dynamic multi-column grid.
+        _binding?.subFeed?.layoutManager = LinearLayoutManager(context)
     }
 
     @SuppressLint("SetTextI18n")
