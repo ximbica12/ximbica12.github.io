@@ -1,5 +1,7 @@
 package com.github.libretube.helpers
 
+import com.github.libretube.LibreTubeApp
+import com.github.libretube.R
 import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.db.obj.LocalPlaylist
@@ -7,23 +9,44 @@ import com.github.libretube.db.obj.LocalPlaylistItem
 import com.github.libretube.extensions.toID
 
 object WatchLaterHelper {
-    private const val MARKER = "__TUBELITE_WATCH_LATER__"
-    private const val NAME = "Assistir mais tarde"
+    private const val LEGACY_MARKER = "__TUBELITE_WATCH_LATER__"
+    private const val PREFS = "nexotube_watch_later"
+    private const val KEY_PREFIX = "playlist_id_"
+
+    private val prefs
+        get() = LibreTubeApp.instance.getSharedPreferences(PREFS, 0)
 
     private suspend fun ensurePlaylistId(): Int {
         val dao = DatabaseHolder.Database.localPlaylistsDao()
-        val existing = dao.getAll().firstOrNull {
-            it.playlist.description == MARKER
-        }
-        if (existing != null) return existing.playlist.id
+        val prefKey = KEY_PREFIX + ProfileManager.getActiveProfileId()
+        val mappedId = prefs.getInt(prefKey, -1)
 
-        return dao.createPlaylist(
+        if (mappedId > 0 && dao.getAll().any { it.playlist.id == mappedId }) {
+            return mappedId
+        }
+
+        // Migrate the old implementation that exposed its internal marker as the
+        // playlist description in the Library UI.
+        val legacy = dao.getAll().firstOrNull {
+            it.playlist.description == LEGACY_MARKER
+        }
+        if (legacy != null) {
+            legacy.playlist.name = LibreTubeApp.instance.getString(R.string.watch_later_local)
+            legacy.playlist.description = null
+            dao.updatePlaylist(legacy.playlist)
+            prefs.edit().putInt(prefKey, legacy.playlist.id).apply()
+            return legacy.playlist.id
+        }
+
+        val id = dao.createPlaylist(
             LocalPlaylist(
-                name = NAME,
+                name = LibreTubeApp.instance.getString(R.string.watch_later_local),
                 thumbnailUrl = "",
-                description = MARKER
+                description = null
             )
         ).toInt()
+        prefs.edit().putInt(prefKey, id).apply()
+        return id
     }
 
     suspend fun contains(videoId: String): Boolean {
