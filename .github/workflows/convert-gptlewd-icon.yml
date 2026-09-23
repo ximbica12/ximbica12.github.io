@@ -1,0 +1,68 @@
+name: Convert GPTLewd Icon
+
+on:
+  push:
+    branches: [gptlewd-web]
+    paths:
+      - 'gptlewd-web/icon-src/**'
+      - '.github/workflows/convert-gptlewd-icon.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ImageMagick
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y imagemagick
+
+      - name: Rebuild source image
+        run: |
+          mkdir -p build/icon
+          cat gptlewd-web/icon-src/icon.b64.part1 gptlewd-web/icon-src/icon.b64.part2 | base64 -d > build/icon/source.jpg
+          identify build/icon/source.jpg
+
+      - name: Create square master without redesign
+        run: |
+          magick build/icon/source.jpg -auto-orient -gravity center -resize 512x512^ -extent 512x512 build/icon/GPTLewd_icon_512.png
+
+      - name: Create Windows ICO
+        run: |
+          magick build/icon/GPTLewd_icon_512.png \
+            \( -clone 0 -resize 256x256 \) \
+            \( -clone 0 -resize 128x128 \) \
+            \( -clone 0 -resize 96x96 \) \
+            \( -clone 0 -resize 64x64 \) \
+            \( -clone 0 -resize 48x48 \) \
+            \( -clone 0 -resize 32x32 \) \
+            \( -clone 0 -resize 24x24 \) \
+            \( -clone 0 -resize 16x16 \) \
+            -delete 0 build/icon/GPTLewd.ico
+
+      - name: Create Android mipmaps
+        run: |
+          magick build/icon/GPTLewd_icon_512.png -resize 48x48 build/icon/ic_launcher_mdpi.png
+          magick build/icon/GPTLewd_icon_512.png -resize 72x72 build/icon/ic_launcher_hdpi.png
+          magick build/icon/GPTLewd_icon_512.png -resize 96x96 build/icon/ic_launcher_xhdpi.png
+          magick build/icon/GPTLewd_icon_512.png -resize 144x144 build/icon/ic_launcher_xxhdpi.png
+          magick build/icon/GPTLewd_icon_512.png -resize 192x192 build/icon/ic_launcher_xxxhdpi.png
+
+      - name: Checksums
+        run: |
+          cd build/icon
+          sha256sum GPTLewd.ico GPTLewd_icon_512.png ic_launcher_*.png > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload converted icon
+        uses: actions/upload-artifact@v4
+        with:
+          name: GPTLewd-Icon
+          path: build/icon/*
+          retention-days: 30
