@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="icon_bg">#16000C</color>
+    <color name="lewd_magenta">#FF2D8E</color>
+    <color name="lewd_pink">#FF77B7</color>
+    <color name="lewd_red">#FF315F</color>
+</resources>
