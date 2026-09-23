@@ -36,7 +36,7 @@
 
                     <TextView
                         style="@style/HomeCategoryTitle"
-                        android:text="@string/your_subscriptions"
+                        android:text="@string/home_subscriptions_compact"
                         app:drawableEndCompat="@drawable/ic_arrow_right" />
 
                 </LinearLayout>
@@ -47,7 +47,7 @@
                     android:layout_height="wrap_content"
                     android:clipToPadding="false"
                     android:nestedScrollingEnabled="false"
-                    android:orientation="vertical"
+                    android:orientation="horizontal"
                     android:visibility="gone"
                     app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
                     tools:visibility="visible" />
@@ -111,7 +111,7 @@
 
                     <TextView
                         style="@style/HomeCategoryTitle"
-                        android:text="@string/discovery_region_hint" />
+                        android:text="@string/home_for_you" />
 
                 </LinearLayout>
 
@@ -122,6 +122,31 @@
                     android:clipToPadding="false"
                     android:nestedScrollingEnabled="false"
                     android:orientation="horizontal"
+                    android:visibility="gone"
+                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+                <LinearLayout
+                    android:id="@+id/languageDiscoveryTV"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/languageDiscoveryTitle"
+                        style="@style/HomeCategoryTitle"
+                        android:text="@string/home_for_you" />
+
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/languageDiscoveryRV"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"
+                    android:orientation="horizontal"
+                    android:paddingEnd="8dp"
                     android:visibility="gone"
                     app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
@@ -137,7 +162,7 @@
                     <TextView
                         style="@style/HomeCategoryTitle"
                         android:background="@null"
-                        android:text="@string/trending"
+                        android:text="@string/home_regional_discovery"
                         app:drawableEndCompat="@drawable/ic_arrow_right" />
 
                     <View
