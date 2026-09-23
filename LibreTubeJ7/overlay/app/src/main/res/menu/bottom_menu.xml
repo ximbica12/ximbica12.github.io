@@ -4,7 +4,7 @@
     <item
         android:id="@+id/homeFragment"
         android:icon="@drawable/ic_home"
-        android:title="@string/startpage" />
+        android:title="@string/tubelite_home" />
 
     <item
         android:id="@+id/shortsFragment"
@@ -25,6 +25,6 @@
     <item
         android:id="@+id/libraryFragment"
         android:icon="@drawable/ic_library"
-        android:title="@string/library" />
+        android:title="@string/tubelite_you" />
 
 </menu>
