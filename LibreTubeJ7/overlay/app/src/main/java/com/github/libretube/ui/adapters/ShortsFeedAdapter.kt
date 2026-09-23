@@ -15,13 +15,15 @@ import com.github.libretube.helpers.ImageHelper
 import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.parcelable.PlayerData
 import com.github.libretube.ui.adapters.callbacks.DiffUtilItemCallback
+import com.google.android.material.imageview.ShapeableImageView
+import com.google.android.material.shape.ShapeAppearanceModel
 
 class ShortsFeedAdapter :
     ListAdapter<StreamItem, ShortsFeedAdapter.Holder>(DiffUtilItemCallback()) {
 
     class Holder(
         val root: FrameLayout,
-        val thumbnail: ImageView,
+        val thumbnail: ShapeableImageView,
         val title: TextView,
         val channel: TextView
     ) : RecyclerView.ViewHolder(root)
@@ -43,12 +45,15 @@ class ShortsFeedAdapter :
             isFocusable = true
         }
 
-        val thumbnail = ImageView(parent.context).apply {
+        val thumbnail = ShapeableImageView(parent.context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
             scaleType = ImageView.ScaleType.CENTER_CROP
+            shapeAppearanceModel = ShapeAppearanceModel.builder()
+                .setAllCornerSizes(dp(18).toFloat())
+                .build()
         }
         root.addView(thumbnail)
 
