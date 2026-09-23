@@ -758,7 +758,7 @@ if "import kotlinx.coroutines.withTimeoutOrNull" not in online:
 
 old_fetch = """            streams = withContext(Dispatchers.IO) {
                 try {
-                    StreamPrefetchCache.getOrFetch(videoId).let {
+                    MediaServiceRepository.instance.getStreams(videoId).let {
                         DeArrowUtil.deArrowStreams(it, videoId)
                     }
                 }  catch (e: Exception) {
