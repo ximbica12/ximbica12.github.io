@@ -42,7 +42,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private val trendsViewModel: TrendsViewModel by activityViewModels()
 
     private val trendingAdapter = VideoCardsAdapter()
-    private val feedAdapter = VideoCardsAdapter(columnWidthDp = 250f)
+    private val feedAdapter = VideoCardsAdapter()
     private val watchingAdapter = VideoCardsAdapter(columnWidthDp = 250f)
     private val watchLaterAdapter = VideoCardsAdapter(columnWidthDp = 250f)
     private val discoveryAdapter = VideoCardsAdapter(columnWidthDp = 250f)
@@ -243,7 +243,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         if (streamItems == null) return
 
         makeVisible(binding.featuredRV, binding.featuredTV)
-        val feedVideos = streamItems.take(20)
+        val feedVideos = streamItems.take(12)
 
         feedAdapter.submitList(feedVideos)
     }
