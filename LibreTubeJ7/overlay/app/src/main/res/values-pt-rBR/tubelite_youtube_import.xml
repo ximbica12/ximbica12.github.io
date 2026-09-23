@@ -21,4 +21,6 @@
     <string name="your_channels_count">Canais inscritos (%1$d)</string>
     <string name="shorts_tab">Shorts</string>
     <string name="shorts_empty">Ainda não há Shorts no cache. Puxe para atualizar o feed de inscrições.</string>
+    <string name="tubelite_home">Início</string>
+    <string name="tubelite_you">Você</string>
 </resources>
