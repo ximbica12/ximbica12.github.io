@@ -33,4 +33,5 @@
     <string name="yt_imported_playlist">Imported directly from your YouTube account.</string>
     <string name="discovery_region_hint">For you • adapted to your history and region</string>
     <string name="shorts_for_you">Shorts for you</string>
+    <string name="yt_rating_wrong_account">The authorized Google account does not match the active profile.</string>
 </resources>
