@@ -2,6 +2,7 @@ package com.github.libretube.helpers
 
 import android.net.Uri
 import com.github.libretube.LibreTubeApp
+import com.github.libretube.R
 import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.db.obj.LocalPlaylist
 import com.github.libretube.db.obj.LocalPlaylistItem
@@ -110,8 +111,8 @@ object YouTubeDirectImport {
                     upsertLocalPlaylist(
                         RemotePlaylist(
                             id = likesPlaylistId,
-                            title = "Vídeos marcados como gostei (YouTube)",
-                            description = "Importado diretamente da sua conta do YouTube.",
+                            title = LibreTubeApp.instance.getString(R.string.yt_liked_videos),
+                            description = LibreTubeApp.instance.getString(R.string.yt_imported_playlist),
                             thumbnail = likes.firstOrNull()?.thumbnail
                         ),
                         likes
@@ -288,11 +289,16 @@ object YouTubeDirectImport {
             0
         )
 
+        val allBefore = dao.getAll()
         val mappedId = prefs.getInt(playlist.id, -1)
         val existing = if (mappedId > 0) {
-            dao.getAll().firstOrNull { it.playlist.id == mappedId }
+            allBefore.firstOrNull { it.playlist.id == mappedId }
         } else {
-            null
+            // Migration path for playlists imported by older TubeLite builds,
+            // which did not persist the remote playlist id mapping.
+            allBefore
+                .filter { it.playlist.name.equals(playlist.title, ignoreCase = true) }
+                .maxByOrNull { it.videos.size }
         }
 
         val localId = if (existing == null) {
@@ -329,6 +335,18 @@ object YouTubeDirectImport {
         }
 
         prefs.edit().putInt(playlist.id, localId).apply()
+
+        // Clean up empty duplicates left by pre-J7.7 imports, but never delete a
+        // populated playlist merely because the user reused the same title.
+        dao.getAll()
+            .filter {
+                it.playlist.id != localId &&
+                    it.playlist.name.equals(playlist.title, ignoreCase = true) &&
+                    it.videos.isEmpty()
+            }
+            .forEach { duplicate ->
+                dao.deletePlaylistById(duplicate.playlist.id.toString())
+            }
     }
 
     private fun bestThumbnail(snippet: JSONObject): String? {
