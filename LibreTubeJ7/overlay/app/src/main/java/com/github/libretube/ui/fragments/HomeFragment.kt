@@ -8,6 +8,7 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.github.libretube.R
 import com.github.libretube.api.MediaServiceRepository
@@ -31,6 +32,7 @@ import com.google.android.material.carousel.CarouselSnapHelper
 import com.google.android.material.carousel.UncontainedCarouselStrategy
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
+import java.util.Locale
 
 
 class HomeFragment : Fragment(R.layout.fragment_home) {
@@ -41,11 +43,12 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private val subscriptionsViewModel: SubscriptionsViewModel by activityViewModels()
     private val trendsViewModel: TrendsViewModel by activityViewModels()
 
-    private val trendingAdapter = VideoCardsAdapter()
-    private val feedAdapter = VideoCardsAdapter()
+    private val trendingAdapter = VideoCardsAdapter(columnWidthDp = 250f)
+    private val feedAdapter = VideoCardsAdapter(columnWidthDp = 250f)
     private val watchingAdapter = VideoCardsAdapter(columnWidthDp = 250f)
     private val watchLaterAdapter = VideoCardsAdapter(columnWidthDp = 250f)
-    private val discoveryAdapter = VideoCardsAdapter(columnWidthDp = 250f)
+    private val discoveryAdapter = VideoCardsAdapter()
+    private val languageDiscoveryAdapter = VideoCardsAdapter(columnWidthDp = 250f)
     private val bookmarkAdapter = CarouselPlaylistAdapter()
     private val playlistAdapter = CarouselPlaylistAdapter()
 
@@ -61,6 +64,32 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
         val playlistsSnapHelper = CarouselSnapHelper()
         playlistsSnapHelper.attachToRecyclerView(binding.playlistsRV)
+
+        binding.discoveryRV.layoutManager = LinearLayoutManager(
+            requireContext(),
+            LinearLayoutManager.VERTICAL,
+            false
+        )
+        binding.languageDiscoveryRV.layoutManager = LinearLayoutManager(
+            requireContext(),
+            LinearLayoutManager.HORIZONTAL,
+            false
+        )
+        binding.trendingRV.layoutManager = LinearLayoutManager(
+            requireContext(),
+            LinearLayoutManager.HORIZONTAL,
+            false
+        )
+        binding.featuredRV.layoutManager = LinearLayoutManager(
+            requireContext(),
+            LinearLayoutManager.HORIZONTAL,
+            false
+        )
+
+        binding.discoveryRV.itemAnimator = null
+        binding.languageDiscoveryRV.itemAnimator = null
+        binding.trendingRV.itemAnimator = null
+        binding.featuredRV.itemAnimator = null
 
         binding.trendingRV.adapter = trendingAdapter
         binding.featuredRV.adapter = feedAdapter
@@ -79,28 +108,31 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         binding.watchingRV.adapter = watchingAdapter
         binding.watchLaterRV.adapter = watchLaterAdapter
         binding.discoveryRV.adapter = discoveryAdapter
+        binding.languageDiscoveryRV.adapter = languageDiscoveryAdapter
 
         // Personal sections first; the generic LibreTube discovery/trending layout
         // is intentionally de-emphasized for the J7 build.
         val sectionsParent = binding.featuredTV.parent as? android.view.ViewGroup
         sectionsParent?.let { parent ->
             val preferredOrder = listOf(
-                binding.featuredTV,
-                binding.featuredRV,
+                binding.discoveryTV,
+                binding.discoveryRV,
+                binding.languageDiscoveryTV,
+                binding.languageDiscoveryRV,
+                binding.trendingTV,
+                binding.trendingRV,
                 binding.watchingTV,
                 binding.watchingRV,
-                binding.playlistsTV,
-                binding.playlistsRV,
+                binding.featuredTV,
+                binding.featuredRV,
                 binding.watchLaterTV,
                 binding.watchLaterRV,
-                binding.discoveryTV,
-                binding.discoveryRV
+                binding.playlistsTV,
+                binding.playlistsRV
             )
             preferredOrder.forEach { parent.removeView(it) }
             preferredOrder.forEach { parent.addView(it) }
         }
-        binding.trendingTV.isGone = true
-        binding.trendingRV.isGone = true
         binding.bookmarksTV.isGone = true
         binding.bookmarksRV.isGone = true
 
@@ -112,6 +144,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             continueWatching.observe(viewLifecycleOwner, ::showContinueWatching)
             watchLater.observe(viewLifecycleOwner, ::showWatchLater)
             discovery.observe(viewLifecycleOwner, ::showDiscovery)
+            languageDiscovery.observe(viewLifecycleOwner, ::showLanguageDiscovery)
+            discoveryLanguage.observe(viewLifecycleOwner, ::showDiscoveryLanguage)
             isLoading.observe(viewLifecycleOwner, ::updateLoading)
         }
 
@@ -151,7 +185,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }
 
         val trendingCategories = MediaServiceRepository.instance.getTrendingCategories()
-        binding.trendingCategory.isVisible = trendingCategories.size > 1
+        binding.trendingCategory.isGone = true
         binding.trendingCategory.setOnClickListener {
             val currentTrendingCategoryPref = PreferenceHelper.getString(
                 PreferenceKeys.TRENDING_CATEGORY,
@@ -235,17 +269,27 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             TrendsViewModel.TrendingStreams(region, trendingStreams.streams)
         )
 
+        if (trendingStreams.streams.isEmpty()) {
+            binding.trendingTV.isGone = true
+            binding.trendingRV.isGone = true
+            return
+        }
+
         makeVisible(binding.trendingRV, binding.trendingTV)
-        trendingAdapter.submitList(trendingStreams.streams.take(10))
+        trendingAdapter.submitList(trendingStreams.streams.take(14))
     }
 
     private fun showFeed(streamItems: List<StreamItem>?) {
         if (streamItems == null) return
 
-        makeVisible(binding.featuredRV, binding.featuredTV)
-        val feedVideos = streamItems.take(12)
+        if (streamItems.isEmpty()) {
+            binding.featuredTV.isGone = true
+            binding.featuredRV.isGone = true
+            return
+        }
 
-        feedAdapter.submitList(feedVideos)
+        makeVisible(binding.featuredRV, binding.featuredTV)
+        feedAdapter.submitList(streamItems.take(10))
     }
 
     private fun showBookmarks(bookmarks: List<PlaylistBookmark>?) {
@@ -300,7 +344,27 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }
 
         makeVisible(binding.discoveryTV, binding.discoveryRV)
-        discoveryAdapter.submitList(videos.take(20))
+        discoveryAdapter.submitList(videos.take(8))
+    }
+
+    private fun showLanguageDiscovery(videos: List<StreamItem>?) {
+        if (videos.isNullOrEmpty()) {
+            binding.languageDiscoveryTV.isGone = true
+            binding.languageDiscoveryRV.isGone = true
+            return
+        }
+
+        makeVisible(binding.languageDiscoveryTV, binding.languageDiscoveryRV)
+        languageDiscoveryAdapter.submitList(videos.take(16))
+    }
+
+    private fun showDiscoveryLanguage(languageCode: String?) {
+        if (languageCode.isNullOrBlank()) return
+        val locale = Locale.forLanguageTag(languageCode)
+        val display = locale.getDisplayLanguage(Locale.getDefault())
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
+        binding.languageDiscoveryTitle.text =
+            getString(R.string.home_language_discovery, display)
     }
 
     private fun updateLoading(isLoading: Boolean) {
@@ -312,9 +376,13 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     }
 
     private fun showLoading() {
-        binding.progress.isVisible = !binding.refresh.isRefreshing
+        val hasExistingContent = homeViewModel.loadedSuccessfully.value == true
+        binding.progress.isVisible = !hasExistingContent && !binding.refresh.isRefreshing
         binding.nothingHere.isVisible = false
-        binding.scroll.alpha = 0.3f
+        binding.scroll.isVisible = hasExistingContent
+        // Keep already-loaded content fully interactive while refreshing. Dimming
+        // the entire page made Home feel blocked even when useful data was present.
+        binding.scroll.alpha = 1.0f
     }
 
     private fun hideLoading() {
