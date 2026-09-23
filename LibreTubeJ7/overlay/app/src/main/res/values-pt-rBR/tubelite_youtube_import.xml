@@ -20,7 +20,17 @@
     <string name="your_channels">Seus canais</string>
     <string name="your_channels_count">Canais inscritos (%1$d)</string>
     <string name="shorts_tab">Shorts</string>
-    <string name="shorts_empty">Ainda não há Shorts no cache. Puxe para atualizar o feed de inscrições.</string>
+    <string name="shorts_empty">Montando Shorts com seu histórico, inscrições e região escolhida… Puxe para atualizar.</string>
     <string name="tubelite_home">Início</string>
     <string name="tubelite_you">Você</string>
+    <string name="yt_like">Gostei</string>
+    <string name="yt_dislike">Não gostei</string>
+    <string name="yt_rating_done">Avaliação salva na sua conta do YouTube.</string>
+    <string name="yt_rating_failed">Não foi possível avaliar no YouTube: %1$s</string>
+    <string name="yt_rating_cancelled">A autorização do Google foi cancelada.</string>
+    <string name="yt_rating_login_required">Primeiro conecte uma conta Google/YouTube a este perfil.</string>
+    <string name="yt_liked_videos">Vídeos marcados como gostei (YouTube)</string>
+    <string name="yt_imported_playlist">Importado diretamente da sua conta do YouTube.</string>
+    <string name="discovery_region_hint">Para você • adaptado ao seu histórico e à sua região</string>
+    <string name="shorts_for_you">Shorts para você</string>
 </resources>
