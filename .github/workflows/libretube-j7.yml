@@ -28,8 +28,14 @@ jobs:
         working-directory: upstream
         run: |
           git fetch --depth=120 origin master
+          git -c user.name="TubeLite CI" -c user.email="ci@localhost" cherry-pick 0ce0658b587d557d5f71e87cba8a07b06a9d61b6
           git -c user.name="TubeLite CI" -c user.email="ci@localhost" cherry-pick 5be98d384529c528f08d6fd245a8d1f96d77ab40
+          git -c user.name="TubeLite CI" -c user.email="ci@localhost" cherry-pick 29a8c34032c77ad14240e6d5d8333fb9b57765fb
+          git -c user.name="TubeLite CI" -c user.email="ci@localhost" cherry-pick 2a76b9a00d9cd49cc2c389e8c1e47793c3b19136
           git -c user.name="TubeLite CI" -c user.email="ci@localhost" cherry-pick 1dec6f68744f4585c43c6c853e4690218ea44b01
+          git -c user.name="TubeLite CI" -c user.email="ci@localhost" cherry-pick b7a016ec4c4b7ba740eceaa5fe81633a9389426a
+          git -c user.name="TubeLite CI" -c user.email="ci@localhost" cherry-pick 2b013d1f82fddf6ad792531e393c7c6b0780e444
+          git -c user.name="TubeLite CI" -c user.email="ci@localhost" cherry-pick 18cd98c14ee4de78f51658a7aaa89f6d0365062f
 
       - name: Apply J7 patch
         run: |
@@ -53,18 +59,18 @@ jobs:
         run: |
           APK="$(find upstream/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
           test -n "$APK"
-          cp "$APK" TubeLite-J7-LibreTube-v32.1-j7.5-unsigned.apk
+          cp "$APK" TubeLite-J7-LibreTube-v32.1-j7.6-unsigned.apk
 
       - name: Archive patched source
         run: |
           rm -rf upstream/.git
-          zip -qr TubeLite-J7-LibreTube-v32.1-j7.5-source.zip upstream
+          zip -qr TubeLite-J7-LibreTube-v32.1-j7.6-source.zip upstream
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: TubeLite-J7-LibreTube-APK
-          path: TubeLite-J7-LibreTube-v32.1-j7.5-unsigned.apk
+          path: TubeLite-J7-LibreTube-v32.1-j7.6-unsigned.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -72,6 +78,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: TubeLite-J7-LibreTube-Source
-          path: TubeLite-J7-LibreTube-v32.1-j7.5-source.zip
+          path: TubeLite-J7-LibreTube-v32.1-j7.6-source.zip
           if-no-files-found: error
           retention-days: 30
