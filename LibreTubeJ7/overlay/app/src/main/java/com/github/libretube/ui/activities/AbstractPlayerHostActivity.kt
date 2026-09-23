@@ -3,7 +3,6 @@ package com.github.libretube.ui.activities
 import android.content.Intent
 import android.view.MenuItem
 import com.github.libretube.R
-import com.github.libretube.helpers.IntentHelper
 import com.github.libretube.ui.dialogs.ProfileDialog
 import com.github.libretube.ui.base.BaseActivity
 import com.github.libretube.ui.fragments.AudioPlayerFragment
@@ -40,7 +39,7 @@ abstract class AbstractPlayerHostActivity: BaseActivity() {
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         return when (item.itemId) {
-            R.id.action_profiles -> {
+            R.id.action_profile -> {
                 ProfileDialog().show(supportFragmentManager, ProfileDialog::class.java.name)
                 true
             }
@@ -60,16 +59,6 @@ abstract class AbstractPlayerHostActivity: BaseActivity() {
             R.id.action_help -> {
                 val helpIntent = Intent(this, HelpActivity::class.java)
                 startActivity(helpIntent)
-                true
-            }
-
-            R.id.action_donate -> {
-                IntentHelper.openLinkFromHref(
-                    this,
-                    supportFragmentManager,
-                    AboutActivity.DONATE_URL,
-                    forceDefaultOpen = true
-                )
                 true
             }
 
