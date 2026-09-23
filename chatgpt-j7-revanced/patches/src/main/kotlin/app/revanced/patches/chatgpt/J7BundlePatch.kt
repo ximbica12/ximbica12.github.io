@@ -9,5 +9,5 @@ val j7BundlePatch = rawResourcePatch(
 ) {
     compatibleWith("com.openai.chatgpt"("1.2026.258"))
     dependsOn(j7DownloadPatch, j7PerformancePatch)
-    apply { }
+    execute { }
 }
