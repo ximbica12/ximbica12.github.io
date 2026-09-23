@@ -23,6 +23,7 @@ import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.extensions.toID
 import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.helpers.PreferenceHelper
+import com.github.libretube.helpers.StreamPrefetchCache
 import com.github.libretube.obj.SelectableOption
 import com.github.libretube.parcelable.PlayerData
 import com.github.libretube.ui.adapters.SubscriptionCircleAdapter
@@ -78,7 +79,10 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
     override fun setLayoutManagers(gridItems: Int) {
         // YouTube-style feed: one large video card per row. It is also cheaper
         // to render on the J7 than a dynamic multi-column grid.
-        _binding?.subFeed?.layoutManager = LinearLayoutManager(context)
+        _binding?.subFeed?.layoutManager = LinearLayoutManager(context).apply {
+            isItemPrefetchEnabled = true
+            initialPrefetchItemCount = 3
+        }
     }
 
     @SuppressLint("SetTextI18n")
@@ -89,12 +93,20 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
         setupSortAndFilter()
 
         binding.subFeed.adapter = feedAdapter
+        binding.subFeed.itemAnimator = null
+        binding.subFeed.setItemViewCacheSize(4)
+
         binding.subChannels.layoutManager = LinearLayoutManager(
             requireContext(),
             LinearLayoutManager.HORIZONTAL,
             false
-        )
+        ).apply {
+            isItemPrefetchEnabled = true
+            initialPrefetchItemCount = 6
+        }
         binding.subChannels.adapter = channelAdapter
+        binding.subChannels.itemAnimator = null
+        binding.subChannels.setItemViewCacheSize(8)
 
         viewModel.loadCachedSubscriptions()
         viewModel.fetchSubscriptions(requireContext())
@@ -378,9 +390,17 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
         binding.subFeed.isGone = notLoaded
         binding.emptyFeed.isVisible = notLoaded
 
-        binding.toggleSubs.text = getString(R.string.subscriptions)
+        binding.toggleSubs.text = getString(R.string.all)
 
         binding.subRefresh.isRefreshing = false
+
+        StreamPrefetchCache.prefetch(
+            sortedFeed
+                .filter { it.type != VideoCardsAdapter.CAUGHT_UP_STREAM_TYPE }
+                .take(3)
+                .mapNotNull { it.url },
+            limit = 3
+        )
 
         feedAdapter.submitList(sortedFeed) {
             if (restoreScrollState) {
