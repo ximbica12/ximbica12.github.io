@@ -20,7 +20,17 @@
     <string name="your_channels">Your channels</string>
     <string name="your_channels_count">Subscribed channels (%1$d)</string>
     <string name="shorts_tab">Shorts</string>
-    <string name="shorts_empty">No Shorts cached yet. Pull to refresh the subscriptions feed.</string>
+    <string name="shorts_empty">Building a Shorts feed from your watch history, subscriptions and selected region… Pull to refresh.</string>
     <string name="tubelite_home">Home</string>
     <string name="tubelite_you">You</string>
+    <string name="yt_like">Like</string>
+    <string name="yt_dislike">Dislike</string>
+    <string name="yt_rating_done">Rating saved to your YouTube account.</string>
+    <string name="yt_rating_failed">Could not rate on YouTube: %1$s</string>
+    <string name="yt_rating_cancelled">Google authorization was cancelled.</string>
+    <string name="yt_rating_login_required">Connect a Google/YouTube account to this profile first.</string>
+    <string name="yt_liked_videos">Liked videos (YouTube)</string>
+    <string name="yt_imported_playlist">Imported directly from your YouTube account.</string>
+    <string name="discovery_region_hint">For you • adapted to your history and region</string>
+    <string name="shorts_for_you">Shorts for you</string>
 </resources>
