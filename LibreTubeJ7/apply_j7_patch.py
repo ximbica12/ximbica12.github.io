@@ -420,6 +420,195 @@ if "R.id.action_profile" not in main:
 main_path.write_text(main, encoding="utf-8")
 
 
+
+# Official YouTube account like/dislike actions. We request the stronger scope
+# only when the user taps a rating button, keeping the library importer read-only.
+player_path = Path("upstream/app/src/main/java/com/github/libretube/ui/fragments/PlayerFragment.kt")
+player = player_path.read_text(encoding="utf-8")
+
+if "import android.widget.Toast\n" not in player:
+    player = player.replace(
+        "import android.view.ViewGroup.LayoutParams\n",
+        "import android.view.ViewGroup.LayoutParams\nimport android.widget.Toast\n",
+        1,
+    )
+if "import androidx.activity.result.IntentSenderRequest\n" not in player:
+    player = player.replace(
+        "import androidx.activity.result.contract.ActivityResultContracts\n",
+        "import androidx.activity.result.IntentSenderRequest\n"
+        "import androidx.activity.result.contract.ActivityResultContracts\n",
+        1,
+    )
+if "import com.github.libretube.helpers.ProfileManager\n" not in player:
+    player = player.replace(
+        "import com.github.libretube.helpers.PlayerHelper\n",
+        "import com.github.libretube.helpers.PlayerHelper\n"
+        "import com.github.libretube.helpers.ProfileManager\n"
+        "import com.github.libretube.helpers.YouTubeAccountActions\n",
+        1,
+    )
+google_anchor = "import com.google.android.material.snackbar.Snackbar\n"
+if "import com.google.android.gms.auth.api.identity.AuthorizationRequest\n" not in player:
+    player = player.replace(
+        google_anchor,
+        "import com.google.android.gms.auth.api.identity.AuthorizationRequest\n"
+        "import com.google.android.gms.auth.api.identity.AuthorizationResult\n"
+        "import com.google.android.gms.auth.api.identity.Identity\n"
+        "import com.google.android.gms.common.api.Scope\n"
+        + google_anchor,
+        1,
+    )
+
+rating_field_anchor = "    private var screenshotBitmap: Bitmap? = null\n"
+rating_fields = r'''    private var pendingYouTubeRating: String? = null
+
+    private val youtubeRatingLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { activityResult ->
+        if (activityResult.resultCode != Activity.RESULT_OK || activityResult.data == null) {
+            context?.let {
+                Toast.makeText(it, R.string.yt_rating_cancelled, Toast.LENGTH_SHORT).show()
+            }
+            pendingYouTubeRating = null
+            return@registerForActivityResult
+        }
+
+        val host = activity ?: return@registerForActivityResult
+        val authClient = Identity.getAuthorizationClient(host)
+        runCatching {
+            authClient.getAuthorizationResultFromIntent(activityResult.data!!)
+        }.onSuccess(::handleYouTubeRatingAuthorization)
+            .onFailure(::showYouTubeRatingError)
+    }
+
+'''
+if "youtubeRatingLauncher" not in player:
+    if rating_field_anchor not in player:
+        raise SystemExit("patch failed: rating field anchor")
+    player = player.replace(rating_field_anchor, rating_fields + rating_field_anchor, 1)
+
+actions_anchor = "    // actions that don't depend on video information\n"
+rating_methods = r'''    private fun rateVideoOnYouTube(rating: String) {
+        val host = activity ?: return
+        val ctx = context ?: return
+        val profile = ProfileManager.getActiveProfile()
+
+        if (profile.googleEmail.isNullOrBlank()) {
+            Toast.makeText(ctx, R.string.yt_rating_login_required, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        pendingYouTubeRating = rating
+        val request = AuthorizationRequest.builder()
+            .setRequestedScopes(
+                listOf(Scope("https://www.googleapis.com/auth/youtube.force-ssl"))
+            )
+            .build()
+
+        val authClient = Identity.getAuthorizationClient(host)
+        authClient.authorize(request)
+            .addOnSuccessListener { result ->
+                if (result.hasResolution()) {
+                    val pendingIntent = result.pendingIntent
+                    if (pendingIntent == null) {
+                        showYouTubeRatingError(
+                            IllegalStateException("Google authorization resolution is missing")
+                        )
+                        return@addOnSuccessListener
+                    }
+                    youtubeRatingLauncher.launch(
+                        IntentSenderRequest.Builder(pendingIntent.intentSender).build()
+                    )
+                } else {
+                    handleYouTubeRatingAuthorization(result)
+                }
+            }
+            .addOnFailureListener(::showYouTubeRatingError)
+    }
+
+    private fun handleYouTubeRatingAuthorization(result: AuthorizationResult) {
+        val ctx = context ?: return
+        val expectedEmail = ProfileManager.getActiveProfile().googleEmail
+        val authorizedEmail = runCatching {
+            @Suppress("DEPRECATION")
+            result.toGoogleSignInAccount()?.email
+        }.getOrNull()
+
+        if (!expectedEmail.isNullOrBlank() &&
+            !authorizedEmail.isNullOrBlank() &&
+            !expectedEmail.equals(authorizedEmail, ignoreCase = true)
+        ) {
+            pendingYouTubeRating = null
+            Toast.makeText(ctx, R.string.yt_rating_wrong_account, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val accessToken = result.accessToken
+        val rating = pendingYouTubeRating
+        if (accessToken.isNullOrBlank() || rating.isNullOrBlank()) {
+            showYouTubeRatingError(
+                IllegalStateException("Google did not return an access token")
+            )
+            return
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching {
+                YouTubeAccountActions.rateVideo(accessToken, videoId, rating)
+            }.onSuccess {
+                pendingYouTubeRating = null
+                withContext(Dispatchers.Main) {
+                    context?.let {
+                        Toast.makeText(it, R.string.yt_rating_done, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }.onFailure { error ->
+                withContext(Dispatchers.Main) {
+                    showYouTubeRatingError(error)
+                }
+            }
+        }
+    }
+
+    private fun showYouTubeRatingError(error: Throwable) {
+        pendingYouTubeRating = null
+        val ctx = context ?: return
+        Toast.makeText(
+            ctx,
+            ctx.getString(
+                R.string.yt_rating_failed,
+                error.localizedMessage ?: error::class.java.simpleName
+            ),
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
+'''
+if "private fun rateVideoOnYouTube" not in player:
+    if actions_anchor not in player:
+        raise SystemExit("patch failed: rating methods anchor")
+    player = player.replace(actions_anchor, rating_methods + actions_anchor, 1)
+
+share_anchor = "        // share button\n"
+rating_clicks = r'''        binding.relPlayerLike.setOnClickListener {
+            if (!this::streams.isInitialized) return@setOnClickListener
+            rateVideoOnYouTube("like")
+        }
+
+        binding.relPlayerDislike.setOnClickListener {
+            if (!this::streams.isInitialized) return@setOnClickListener
+            rateVideoOnYouTube("dislike")
+        }
+
+'''
+if "binding.relPlayerLike.setOnClickListener" not in player:
+    if share_anchor not in player:
+        raise SystemExit("patch failed: player rating click anchor")
+    player = player.replace(share_anchor, rating_clicks + share_anchor, 1)
+
+player_path.write_text(player, encoding="utf-8")
+
+
 # Android 8/8.1 stability fix: never enter system PiP when leaving the app.
 # On Oreo we pause immediately and disable the video track instead of moving the
 # video Surface into a system overlay. Android 9+ keeps upstream PiP behavior.
