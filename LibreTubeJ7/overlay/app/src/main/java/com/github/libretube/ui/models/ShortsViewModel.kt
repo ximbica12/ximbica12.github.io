@@ -14,6 +14,8 @@ import com.github.libretube.db.DatabaseHelper
 import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.extensions.TAG
 import com.github.libretube.helpers.PreferenceHelper
+import com.github.libretube.helpers.DiscoveryLanguageHelper
+import com.github.libretube.helpers.StreamPrefetchCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -49,6 +51,15 @@ class ShortsViewModel : ViewModel() {
             }.getOrDefault(emptyList())
 
             val watchedIds = history.map { it.videoId }.toHashSet()
+
+            // Set the extractor language from what this profile actually watches,
+            // rather than forcing the app UI language onto every Shorts search.
+            val region = PreferenceHelper.getTrendingRegion(context)
+            DiscoveryLanguageHelper.buildSignals(
+                recentVideoIds = history.map { it.videoId },
+                region = region
+            )
+
             val personalized = mutableListOf<StreamItem>()
 
             // Related videos are the strongest taste signal available without using
@@ -81,7 +92,6 @@ class ShortsViewModel : ViewModel() {
 
             // Region-aware random discovery keeps Shorts from being limited to
             // subscriptions and prevents an empty page for new profiles.
-            val region = PreferenceHelper.getTrendingRegion(context)
             val categories = MediaServiceRepository.instance.getTrendingCategories()
             val preferred = PreferenceHelper.getString(
                 PreferenceKeys.TRENDING_CATEGORY,
@@ -114,6 +124,14 @@ class ShortsViewModel : ViewModel() {
                 .take(60)
 
             shorts.postValue(result)
+
+            // Warm the currently visible Short and its immediate successors. This
+            // removes most of the expensive extraction delay before autoplay.
+            StreamPrefetchCache.prefetch(
+                result.take(3).mapNotNull { it.url },
+                limit = 3
+            )
+
             loading.postValue(false)
         }
     }
