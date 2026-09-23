@@ -604,12 +604,12 @@ if "private fun rateVideoOnYouTube" not in player:
     player = player.replace(actions_anchor, rating_methods + actions_anchor, 1)
 
 share_anchor = "        // share button\n"
-rating_clicks = r'''        binding.relPlayerLike.setOnClickListener {
+rating_clicks = r'''        binding.relPlayerLike?.setOnClickListener {
             if (!this::streams.isInitialized) return@setOnClickListener
             rateVideoOnYouTube("like")
         }
 
-        binding.relPlayerDislike.setOnClickListener {
+        binding.relPlayerDislike?.setOnClickListener {
             if (!this::streams.isInitialized) return@setOnClickListener
             rateVideoOnYouTube("dislike")
         }
