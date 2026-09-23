@@ -21,4 +21,6 @@
     <string name="your_channels_count">Subscribed channels (%1$d)</string>
     <string name="shorts_tab">Shorts</string>
     <string name="shorts_empty">No Shorts cached yet. Pull to refresh the subscriptions feed.</string>
+    <string name="tubelite_home">Home</string>
+    <string name="tubelite_you">You</string>
 </resources>
