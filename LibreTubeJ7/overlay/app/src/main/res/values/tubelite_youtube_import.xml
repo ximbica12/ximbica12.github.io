@@ -34,4 +34,9 @@
     <string name="discovery_region_hint">For you • adapted to your history and region</string>
     <string name="shorts_for_you">Shorts for you</string>
     <string name="yt_rating_wrong_account">The authorized Google account does not match the active profile.</string>
+    <string name="home_for_you">For you</string>
+    <string name="home_for_you_hint">Picked from what you watch</string>
+    <string name="home_language_discovery">New in %1$s</string>
+    <string name="home_regional_discovery">Interesting in your region</string>
+    <string name="home_subscriptions_compact">From your subscriptions</string>
 </resources>
