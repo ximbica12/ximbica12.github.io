@@ -26,6 +26,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 class HomeViewModel : ViewModel() {
     private val hideWatched
@@ -33,6 +34,7 @@ class HomeViewModel : ViewModel() {
             PreferenceKeys.HIDE_WATCHED_FROM_FEED,
             false
         )
+
     private val showUpcoming
         get() = PreferenceHelper.getBoolean(
             PreferenceKeys.SHOW_UPCOMING_IN_FEED,
@@ -66,26 +68,24 @@ class HomeViewModel : ViewModel() {
         loadHomeJob?.cancel()
         loadHomeJob = viewModelScope.launch {
             val result = async {
-                // Keep the J7 home personal and lightweight. Trending/bookmarks are
-                // still available elsewhere, but are not fetched on every Home load.
                 awaitAll(
                     async { loadFeed(subscriptionsViewModel) },
                     async { loadVideosToContinueWatching() },
                     async { loadPlaylists() },
                     async { loadWatchLater() }
                 )
-                // Discovery performs stream extraction, so do it after the cheap/local
-                // sections instead of competing with them on a low-memory device.
-                loadDiscovery()
-                loadedSuccessfully.value = sections.any { it.value != null }
+
+                // Discovery comes after the cheap/local sections so it does not
+                // compete with them for CPU/network on the Galaxy J7.
+                loadDiscovery(context, subscriptionsViewModel)
+
+                loadedSuccessfully.value = sections.any { !it.value.isNullOrEmpty() }
                 isLoading.value = false
             }
 
             withContext(Dispatchers.IO) {
                 delay(UNUSUAL_LOAD_TIME_MS)
-                if (result.isActive) {
-                    onUnusualLoadTime.invoke()
-                }
+                if (result.isActive) onUnusualLoadTime.invoke()
             }
         }
     }
@@ -100,15 +100,10 @@ class HomeViewModel : ViewModel() {
         runSafely(
             onSuccess = { videos ->
                 trending.updateIfChanged(
-                    Pair(
-                        category,
-                        TrendsViewModel.TrendingStreams(region, videos)
-                    )
+                    Pair(category, TrendsViewModel.TrendingStreams(region, videos))
                 )
             },
-            ioBlock = {
-                MediaServiceRepository.instance.getTrending(region, category)
-            }
+            ioBlock = { MediaServiceRepository.instance.getTrending(region, category) }
         )
     }
 
@@ -140,35 +135,83 @@ class HomeViewModel : ViewModel() {
         )
     }
 
-    private suspend fun loadDiscovery() {
-        if (!PlayerHelper.watchHistoryEnabled) return
-
+    private suspend fun loadDiscovery(
+        context: Context,
+        subscriptionsViewModel: SubscriptionsViewModel
+    ) {
         runSafely(
             onSuccess = { videos -> discovery.updateIfChanged(videos) },
             ioBlock = {
-                val seeds = DatabaseHelper.getWatchHistoryPage(1, 6).take(2)
-                if (seeds.isEmpty()) return@runSafely emptyList()
-
-                val seedIds = seeds.map { it.videoId }.toSet()
-                val candidates = mutableListOf<StreamItem>()
-
-                for (seed in seeds) {
-                    val related = runCatching {
-                        MediaServiceRepository.instance
-                            .getStreams(seed.videoId)
-                            .relatedStreams
-                            .take(8)
-                    }.getOrDefault(emptyList())
-                    candidates += related
+                val history = if (PlayerHelper.watchHistoryEnabled) {
+                    DatabaseHelper.getWatchHistoryPage(1, 20)
+                } else {
+                    emptyList()
                 }
 
+                val watchedIds = history.map { it.videoId }.toHashSet()
+                val related = mutableListOf<StreamItem>()
+
+                // About 60% of the recommendation pool starts from recent viewing.
+                // Randomizing the seed selection prevents Home from becoming the same
+                // two recommendation trees on every refresh.
+                for (seed in history.shuffled().take(3)) {
+                    val recommendations = withTimeoutOrNull(8_000L) {
+                        runCatching {
+                            MediaServiceRepository.instance
+                                .getStreams(seed.videoId)
+                                .relatedStreams
+                                .filterNot { it.isShort }
+                                .take(6)
+                        }.getOrDefault(emptyList())
+                    }.orEmpty()
+                    related += recommendations
+                }
+
+                // Subscription feed contributes familiar creators.
+                val subscriptions = subscriptionsViewModel.videoFeed.value
+                    .orEmpty()
+                    .filterNot { it.isShort }
+                    .shuffled()
+                    .take(8)
+
+                // The remaining pool follows the region explicitly selected by the
+                // user. One category/request keeps this inexpensive on the J7.
+                val region = PreferenceHelper.getTrendingRegion(context)
+                val categories = MediaServiceRepository.instance.getTrendingCategories()
+                val preferred = PreferenceHelper.getString(
+                    PreferenceKeys.TRENDING_CATEGORY,
+                    TrendingCategory.LIVE.name
+                )
+                val category = categories.firstOrNull { it.name == preferred }
+                    ?: categories.randomOrNull()
+
+                val regional = if (category == null) {
+                    emptyList()
+                } else {
+                    withTimeoutOrNull(10_000L) {
+                        runCatching {
+                            MediaServiceRepository.instance
+                                .getTrending(region, category)
+                                .filterNot { it.isShort }
+                                .shuffled()
+                                .take(8)
+                        }.getOrDefault(emptyList())
+                    }.orEmpty()
+                }
+
+                val mixed = buildList {
+                    addAll(related.shuffled().take(12))
+                    addAll(subscriptions.take(5))
+                    addAll(regional.take(5))
+                }
+                    .distinctBy { it.url }
+                    .filter { it.url !in watchedIds }
+
                 DatabaseHelper.filterByStreamTypeAndWatchPosition(
-                    candidates
-                        .distinctBy { it.url }
-                        .filter { it.url !in seedIds },
+                    mixed,
                     hideWatched = true,
                     showUpcoming = showUpcoming
-                ).take(16)
+                ).take(20)
             }
         )
     }
@@ -183,28 +226,29 @@ class HomeViewModel : ViewModel() {
 
     private suspend fun loadWatchingFromDB(): List<StreamItem> {
         val videos = DatabaseHelper.getWatchHistoryPage(1, 20)
-
-        return DatabaseHelper
-            .filterUnwatched(videos.map { it.toStreamItem() })
+        return DatabaseHelper.filterUnwatched(videos.map { it.toStreamItem() })
     }
 
-    private suspend fun tryLoadFeed(subscriptionsViewModel: SubscriptionsViewModel): List<StreamItem> {
-        // use cached feed if available, otherwise load feed from API/database
-        val feed = subscriptionsViewModel.videoFeed.value ?: run {
+    private suspend fun tryLoadFeed(
+        subscriptionsViewModel: SubscriptionsViewModel
+    ): List<StreamItem> {
+        val cached = subscriptionsViewModel.videoFeed.value
+        val currentFeed = if (!cached.isNullOrEmpty()) {
+            cached
+        } else {
             SubscriptionHelper.getFeed(forceRefresh = false).also {
                 subscriptionsViewModel.videoFeed.postValue(it)
             }
         }
 
-        return DatabaseHelper.filterByStreamTypeAndWatchPosition(feed, hideWatched, showUpcoming)
+        return DatabaseHelper.filterByStreamTypeAndWatchPosition(
+            currentFeed,
+            hideWatched,
+            showUpcoming
+        )
     }
 
     companion object {
         private const val UNUSUAL_LOAD_TIME_MS = 10000L
-        private const val FEATURED = "featured"
-        private const val WATCHING = "watching"
-        private const val TRENDING = "trending"
-        private const val BOOKMARKS = "bookmarks"
-        private const val PLAYLISTS = "playlists"
     }
 }
