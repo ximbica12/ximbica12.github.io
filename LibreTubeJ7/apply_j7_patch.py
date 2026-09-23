@@ -1,5 +1,7 @@
 from pathlib import Path
+import copy
 import re
+import xml.etree.ElementTree as ET
 
 p = Path("upstream/app/build.gradle.kts")
 s = p.read_text(encoding="utf-8")
@@ -18,24 +20,24 @@ s = sub_once(
 )
 s = sub_once(
     r'versionCode\s*=\s*\d+',
-    'versionCode = 320106',
+    'versionCode = 320107',
     s,
     "versionCode",
 )
 s = sub_once(
     r'versionName\s*=\s*"[^"]+"',
-    'versionName = "32.1-j7.6"',
+    'versionName = "32.1-j7.7"',
     s,
     "versionName",
 )
 s = sub_once(
     r'resValue\("string",\s*"app_name",\s*"LibreTube"\)',
-    'resValue("string", "app_name", "TubeLite J7")',
+    'resValue("string", "app_name", "NexoTube")',
     s,
     "app name",
 )
 
-needle = 'resValue("string", "app_name", "TubeLite J7")'
+needle = 'resValue("string", "app_name", "NexoTube")'
 if 'abiFilters += setOf("armeabi-v7a")' not in s:
     s = s.replace(
         needle,
@@ -55,6 +57,32 @@ if 'com.google.android.gms:play-services-auth:21.6.0' not in s:
     )
 
 p.write_text(s, encoding="utf-8")
+
+
+# Android 8 language fix: LibreTube has both pt and pt-rBR, but newer strings
+# are not always translated in the Brazilian resource set. Backfill only names
+# missing from pt-rBR with the Portuguese translation before Android falls back
+# to English.
+pt_path = Path("upstream/app/src/main/res/values-pt/strings.xml")
+ptbr_path = Path("upstream/app/src/main/res/values-pt-rBR/strings.xml")
+if pt_path.exists() and ptbr_path.exists():
+    pt_tree = ET.parse(pt_path)
+    ptbr_tree = ET.parse(ptbr_path)
+    pt_root = pt_tree.getroot()
+    ptbr_root = ptbr_tree.getroot()
+    existing_names = {
+        node.attrib.get("name")
+        for node in ptbr_root
+        if node.attrib.get("name")
+    }
+    for node in pt_root:
+        name = node.attrib.get("name")
+        if name and name not in existing_names:
+            ptbr_root.append(copy.deepcopy(node))
+            existing_names.add(name)
+    ET.indent(ptbr_tree, space="    ")
+    ptbr_tree.write(ptbr_path, encoding="utf-8", xml_declaration=True)
+
 
 # Add a direct Google -> LibreTube import action to the existing import/export screen.
 settings_path = Path("upstream/app/src/main/java/com/github/libretube/ui/preferences/BackupRestoreSettings.kt")
@@ -279,7 +307,7 @@ xml_path.write_text(xml, encoding="utf-8")
 
 
 
-# TubeLite J7.6 top bar: app title + visible profile shortcut.
+# NexoTube J7.7 top bar: app title + visible profile shortcut.
 main_path = Path("upstream/app/src/main/java/com/github/libretube/ui/activities/MainActivity.kt")
 main = main_path.read_text(encoding="utf-8")
 if "import com.github.libretube.ui.dialogs.ProfileDialog" not in main:
@@ -479,13 +507,13 @@ online_path.write_text(online, encoding="utf-8")
 
 
 # Keep attribution visible inside the patched source.
-notice = Path("upstream/TUBELITE_J7_MODIFICATIONS.md")
+notice = Path("upstream/NEXOTUBE_MODIFICATIONS.md")
 notice.write_text(
-    "# TubeLite J7 modifications\n\n"
+    "# NexoTube modifications\n\n"
     "Based on LibreTube v32.1 (GPL-3.0-or-later).\n"
-    "Changes: Android applicationId, display name, version metadata, ARMv7 targeting, direct Google library import, lifecycle-safe isolated profiles, YouTube-like navigation/Home/Shorts, local Watch Later, playback timeout/SABR hardening, selected upstream crash fixes, and Oreo safeguards for Samsung Galaxy J7 Prime.\n"
+    "Changes: Android applicationId, NexoTube branding, ARMv7 targeting, pt-BR fixes, direct Google library import, account ratings, lifecycle-safe isolated profiles, personalized regional Home/Shorts, automatic PT caption fallback, local Watch Later, playback timeout/SABR hardening, selected upstream crash fixes, and Oreo safeguards for Samsung Galaxy J7 Prime.\n"
     "The upstream project and copyright notices remain intact.\n",
     encoding="utf-8",
 )
 
-print("TubeLite J7 patch applied successfully")
+print("NexoTube J7.7 patch applied successfully")
