@@ -736,11 +736,11 @@ sabr_path.write_text(sabr, encoding="utf-8")
 
 online_path = Path("upstream/app/src/main/java/com/github/libretube/services/OnlinePlayerService.kt")
 online = online_path.read_text(encoding="utf-8")
-if "import com.github.libretube.helpers.StreamPrefetchCache\\n" not in online:
+if "import com.github.libretube.helpers.StreamPrefetchCache\n" not in online:
     online = online.replace(
-        "import com.github.libretube.helpers.ProxyHelper\\n",
-        "import com.github.libretube.helpers.ProxyHelper\\n"
-        "import com.github.libretube.helpers.StreamPrefetchCache\\n",
+        "import com.github.libretube.helpers.ProxyHelper\n",
+        "import com.github.libretube.helpers.ProxyHelper\n"
+        "import com.github.libretube.helpers.StreamPrefetchCache\n",
         1,
     )
 if "import kotlinx.coroutines.delay" not in online:
