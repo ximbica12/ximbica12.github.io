@@ -10,20 +10,20 @@ val j7PerformancePatch = resourcePatch(
 ) {
     compatibleWith("com.openai.chatgpt"("1.2026.258"))
 
-    apply {
-        document("AndroidManifest.xml").use { doc ->
+    execute {
+        editManifest { doc ->
             val providers = doc.getElementsByTagName("provider")
-            val providersToDisable = setOf(
+            val providersToRemove = setOf(
                 "com.datadog.android.rum.DdRumContentProvider",
                 "io.sentry.ndk.SentryNdkPreloadProvider",
             )
 
-            for (i in 0 until providers.length) {
+            for (i in providers.length - 1 downTo 0) {
                 val provider = providers.item(i) as? Element ?: continue
                 val providerName = provider.getAttributeNS(ANDROID_NS, "name")
-
-                if (providerName in providersToDisable) {
-                    provider.setAttributeNS(ANDROID_NS, "android:enabled", "false")
+                if (providerName in providersToRemove) {
+                    provider.parentNode.removeChild(provider)
+                    continue
                 }
 
                 if (providerName == "androidx.startup.InitializationProvider") {
