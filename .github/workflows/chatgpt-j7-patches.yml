@@ -32,7 +32,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: chatgpt-j7-revanced
-        run: gradle clean :patches:apiDump build --stacktrace
+        run: |
+          gradle clean :patches:apiDump --stacktrace
+          gradle build --stacktrace
 
       - name: Upload patch build
         if: always()
