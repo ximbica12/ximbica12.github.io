@@ -26,33 +26,24 @@ jobs:
       - name: Rebuild source image
         run: |
           mkdir -p build/icon
-          cat gptlewd-web/icon-src/icon.b64.part1 gptlewd-web/icon-src/icon.b64.part2 | base64 -d > build/icon/source.jpg
+          base64 -d gptlewd-web/icon-src/icon.b64 > build/icon/source.jpg
           identify build/icon/source.jpg
 
       - name: Create square master without redesign
         run: |
-          magick build/icon/source.jpg -auto-orient -gravity center -resize 512x512^ -extent 512x512 build/icon/GPTLewd_icon_512.png
+          convert build/icon/source.jpg -auto-orient -gravity center -resize 512x512^ -extent 512x512 build/icon/GPTLewd_icon_512.png
 
       - name: Create Windows ICO
         run: |
-          magick build/icon/GPTLewd_icon_512.png \
-            \( -clone 0 -resize 256x256 \) \
-            \( -clone 0 -resize 128x128 \) \
-            \( -clone 0 -resize 96x96 \) \
-            \( -clone 0 -resize 64x64 \) \
-            \( -clone 0 -resize 48x48 \) \
-            \( -clone 0 -resize 32x32 \) \
-            \( -clone 0 -resize 24x24 \) \
-            \( -clone 0 -resize 16x16 \) \
-            -delete 0 build/icon/GPTLewd.ico
+          convert build/icon/GPTLewd_icon_512.png             \( -clone 0 -resize 256x256 \)             \( -clone 0 -resize 128x128 \)             \( -clone 0 -resize 96x96 \)             \( -clone 0 -resize 64x64 \)             \( -clone 0 -resize 48x48 \)             \( -clone 0 -resize 32x32 \)             \( -clone 0 -resize 24x24 \)             \( -clone 0 -resize 16x16 \)             -delete 0 build/icon/GPTLewd.ico
 
       - name: Create Android mipmaps
         run: |
-          magick build/icon/GPTLewd_icon_512.png -resize 48x48 build/icon/ic_launcher_mdpi.png
-          magick build/icon/GPTLewd_icon_512.png -resize 72x72 build/icon/ic_launcher_hdpi.png
-          magick build/icon/GPTLewd_icon_512.png -resize 96x96 build/icon/ic_launcher_xhdpi.png
-          magick build/icon/GPTLewd_icon_512.png -resize 144x144 build/icon/ic_launcher_xxhdpi.png
-          magick build/icon/GPTLewd_icon_512.png -resize 192x192 build/icon/ic_launcher_xxxhdpi.png
+          convert build/icon/GPTLewd_icon_512.png -resize 48x48 build/icon/ic_launcher_mdpi.png
+          convert build/icon/GPTLewd_icon_512.png -resize 72x72 build/icon/ic_launcher_hdpi.png
+          convert build/icon/GPTLewd_icon_512.png -resize 96x96 build/icon/ic_launcher_xhdpi.png
+          convert build/icon/GPTLewd_icon_512.png -resize 144x144 build/icon/ic_launcher_xxhdpi.png
+          convert build/icon/GPTLewd_icon_512.png -resize 192x192 build/icon/ic_launcher_xxxhdpi.png
 
       - name: Checksums
         run: |
