@@ -3,7 +3,6 @@ package com.github.libretube.ui.adapters
 import android.graphics.Typeface
 import android.view.Gravity
 import android.view.ViewGroup
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.ListAdapter
@@ -12,13 +11,16 @@ import com.github.libretube.api.obj.Subscription
 import com.github.libretube.helpers.ImageHelper
 import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.ui.adapters.callbacks.DiffUtilItemCallback
+import com.google.android.material.imageview.ShapeableImageView
+import com.google.android.material.shape.RelativeCornerSize
+import com.google.android.material.shape.ShapeAppearanceModel
 
 class SubscriptionCircleAdapter :
     ListAdapter<Subscription, SubscriptionCircleAdapter.Holder>(DiffUtilItemCallback()) {
 
     class Holder(
         val root: LinearLayout,
-        val image: ImageView,
+        val image: ShapeableImageView,
         val title: TextView
     ) : RecyclerView.ViewHolder(root)
 
@@ -35,9 +37,12 @@ class SubscriptionCircleAdapter :
             isFocusable = true
         }
 
-        val image = ImageView(parent.context).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(52), dp(52))
-            scaleType = ImageView.ScaleType.CENTER_CROP
+        val image = ShapeableImageView(parent.context).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
+            scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+            shapeAppearanceModel = ShapeAppearanceModel.builder()
+                .setAllCornerSizes(RelativeCornerSize(0.5f))
+                .build()
             contentDescription = null
         }
 
