@@ -5,10 +5,11 @@ import android.view.View
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.PagerSnapHelper
 import com.github.libretube.R
 import com.github.libretube.databinding.FragmentShortsBinding
-import com.github.libretube.ui.adapters.VideoCardsAdapter
+import com.github.libretube.ui.adapters.ShortsFeedAdapter
 import com.github.libretube.ui.models.ShortsViewModel
 
 class ShortsFragment : Fragment(R.layout.fragment_shorts) {
@@ -16,14 +17,21 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
     private val binding get() = _binding!!
 
     private val viewModel: ShortsViewModel by viewModels()
-    private val adapter = VideoCardsAdapter(columnWidthDp = 165f)
+    private val adapter = ShortsFeedAdapter()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         _binding = FragmentShortsBinding.bind(view)
         super.onViewCreated(view, savedInstanceState)
 
-        binding.shortsList.layoutManager = GridLayoutManager(requireContext(), 2)
+        binding.shortsList.layoutManager = LinearLayoutManager(
+            requireContext(),
+            LinearLayoutManager.VERTICAL,
+            false
+        )
         binding.shortsList.adapter = adapter
+        if (binding.shortsList.onFlingListener == null) {
+            PagerSnapHelper().attachToRecyclerView(binding.shortsList)
+        }
 
         viewModel.shorts.observe(viewLifecycleOwner) { shorts ->
             adapter.submitList(shorts)
