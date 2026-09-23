@@ -12,7 +12,7 @@ This branch builds a J7-focused derivative from the official LibreTube source.
 - app name: TubeLite J7
 - minSdk remains 26 (Android 8.0)
 - ARM ABI restricted to armeabi-v7a
-- version: 32.1-j7.4
+- version: 32.1-j7.7
 - release build generated from pinned upstream source
 - patched source archive is uploaded together with the APK for GPL compliance
 
@@ -71,3 +71,24 @@ Nesta build:
 - Android 9+ mantém o PiP normal.
 
 O modo de áudio em segundo plano continua disponível quando o usuário o escolhe explicitamente.
+
+
+## J7.7 — NexoTube
+
+- nome visível alterado de TubeLite J7 para **NexoTube**; o applicationId continua `com.ximbica.tubelite` para preservar atualizações e OAuth;
+- correção do seletor PT-BR no Android 8: `pt-rBR` não é mais convertido em `pt_BR` e interpretado incorretamente;
+- traduções ausentes em PT-BR são preenchidas com o recurso português antes de qualquer fallback para inglês;
+- Home Discovery mistura histórico recente, feed de inscrições e conteúdo regional da região escolhida;
+- Shorts usa histórico, relacionados, inscrições, região e embaralhamento, com fallback para vídeos curtos de até 3 minutos;
+- avatares de inscrições agora são circulares; cards de vídeo/playlist/Shorts têm cantos mais arredondados;
+- cor de destaque padrão passa de azul para vermelho na primeira migração, permanecendo configurável em Aparência;
+- o marcador interno do Watch Later não aparece mais na descrição da playlist; builds antigas são migradas;
+- importação Google reaproveita playlists antigas e remove apenas duplicatas vazias;
+- player ganhou **Gostei** e **Não gostei** usando a YouTube Data API `videos.rate` e autorização `youtube.force-ssl` sob demanda;
+- legendas: quando não existe faixa portuguesa, NexoTube tenta criar uma faixa **Português (automático)** a partir da URL de caption/timedtext já extraída pelo NewPipe e a seleciona automaticamente quando o idioma do app é português.
+
+### Limitações conhecidas
+
+A YouTube Data API oficial só permite baixar uma faixa de legenda quando o usuário autenticado tem permissão para editar o vídeo. Por isso a tradução automática de vídeos públicos usa a URL de legenda obtida pelo extrator/player do YouTube; é um caminho best-effort e pode precisar de manutenção se o YouTube mudar esse endpoint.
+
+Para registrar Gostei/Não gostei na conta, o projeto OAuth também precisa autorizar o escopo `https://www.googleapis.com/auth/youtube.force-ssl`. O importador da biblioteca continua solicitando apenas `youtube.readonly`.
