@@ -55,6 +55,9 @@ class HomeViewModel : ViewModel() {
     private val sections get() =
         listOf(feed, continueWatching, playlists, watchLater, discovery)
 
+    var lastDiscoveryRegion: String? = null
+        private set
+
     private var loadHomeJob: Job? = null
 
     fun loadHomeFeed(
@@ -177,6 +180,7 @@ class HomeViewModel : ViewModel() {
                 // The remaining pool follows the region explicitly selected by the
                 // user. One category/request keeps this inexpensive on the J7.
                 val region = PreferenceHelper.getTrendingRegion(context)
+                lastDiscoveryRegion = region
                 val categories = MediaServiceRepository.instance.getTrendingCategories()
                 val preferred = PreferenceHelper.getString(
                     PreferenceKeys.TRENDING_CATEGORY,
