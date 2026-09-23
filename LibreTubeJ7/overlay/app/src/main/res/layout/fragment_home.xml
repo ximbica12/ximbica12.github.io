@@ -111,7 +111,7 @@
 
                     <TextView
                         style="@style/HomeCategoryTitle"
-                        android:text="@string/discovery_for_you" />
+                        android:text="@string/discovery_region_hint" />
 
                 </LinearLayout>
 
