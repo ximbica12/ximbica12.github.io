@@ -775,7 +775,7 @@ new_fetch = """            streams = withContext(Dispatchers.IO) {
                 repeat(2) { attempt ->
                     loaded = withTimeoutOrNull(25_000L) {
                         runCatching {
-                            MediaServiceRepository.instance.getStreams(videoId).let {
+                            StreamPrefetchCache.getOrFetch(videoId).let {
                                 DeArrowUtil.deArrowStreams(it, videoId)
                             }
                         }.onFailure {
@@ -805,9 +805,9 @@ notice = Path("upstream/NEXOTUBE_MODIFICATIONS.md")
 notice.write_text(
     "# NexoTube modifications\n\n"
     "Based on LibreTube v32.1 (GPL-3.0-or-later).\n"
-    "Changes: Android applicationId, NexoTube branding, ARMv7 targeting, pt-BR fixes, direct Google library import, account ratings, lifecycle-safe isolated profiles, personalized regional Home/Shorts, automatic PT caption fallback, local Watch Later, playback timeout/SABR hardening, selected upstream crash fixes, and Oreo safeguards for Samsung Galaxy J7 Prime.\n"
+    "Changes: Android applicationId, NexoTube branding, ARMv7 targeting, pt-BR fixes, direct Google library import, account ratings, lifecycle-safe isolated profiles, discovery-first language-aware Home, autoplay Shorts, lightweight stream prefetching, automatic PT caption fallback, local Watch Later, playback timeout/SABR hardening, selected upstream crash fixes, and Oreo safeguards for Samsung Galaxy J7 Prime.\n"
     "The upstream project and copyright notices remain intact.\n",
     encoding="utf-8",
 )
 
-print("NexoTube J7.7 patch applied successfully")
+print("NexoTube J7.8 patch applied successfully")
