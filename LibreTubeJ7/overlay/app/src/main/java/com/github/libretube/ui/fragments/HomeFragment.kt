@@ -196,11 +196,11 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
         // Avoid re-fetching when re-entering the screen if it was loaded successfully, except when
         // the value of trending region has changed
-        val isTrendingRegionChanged = homeViewModel.trending.value?.let {
-            it.second.region != PreferenceHelper.getTrendingRegion(requireContext())
-        } == true
+        val isRegionChanged =
+            homeViewModel.lastDiscoveryRegion != null &&
+                homeViewModel.lastDiscoveryRegion != PreferenceHelper.getTrendingRegion(requireContext())
 
-        if (homeViewModel.loadedSuccessfully.value == false || isTrendingRegionChanged) {
+        if (homeViewModel.loadedSuccessfully.value == false || isRegionChanged) {
             fetchHomeFeed()
         }
     }
