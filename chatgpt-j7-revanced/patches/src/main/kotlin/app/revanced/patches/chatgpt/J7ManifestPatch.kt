@@ -1,9 +1,28 @@
 package app.revanced.patches.chatgpt
 
+import app.revanced.patcher.patch.ResourcePatchContext
 import app.revanced.patcher.patch.resourcePatch
+import org.w3c.dom.Document
 import org.w3c.dom.Element
+import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
+import javax.xml.transform.OutputKeys
+import javax.xml.transform.TransformerFactory
+import javax.xml.transform.dom.DOMSource
+import javax.xml.transform.stream.StreamResult
 
 internal const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
+
+internal fun ResourcePatchContext.editManifest(block: (Document) -> Unit) {
+    val manifestFile: File = this["AndroidManifest.xml"]
+    val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+    val document = factory.newDocumentBuilder().parse(manifestFile)
+    block(document)
+    TransformerFactory.newInstance().newTransformer().apply {
+        setOutputProperty(OutputKeys.INDENT, "no")
+        setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no")
+    }.transform(DOMSource(document), StreamResult(manifestFile))
+}
 
 @Suppress("unused")
 val j7ManifestPatch = resourcePatch(
@@ -12,8 +31,8 @@ val j7ManifestPatch = resourcePatch(
 ) {
     compatibleWith("com.openai.chatgpt"("1.2026.258"))
 
-    apply {
-        document("AndroidManifest.xml").use { doc ->
+    execute {
+        editManifest { doc ->
             val manifest = doc.documentElement
             val application = doc.getElementsByTagName("application").item(0)
 
