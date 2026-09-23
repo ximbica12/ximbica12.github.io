@@ -18,13 +18,13 @@ s = sub_once(
 )
 s = sub_once(
     r'versionCode\s*=\s*\d+',
-    'versionCode = 320105',
+    'versionCode = 320106',
     s,
     "versionCode",
 )
 s = sub_once(
     r'versionName\s*=\s*"[^"]+"',
-    'versionName = "32.1-j7.5"',
+    'versionName = "32.1-j7.6"',
     s,
     "versionName",
 )
@@ -111,11 +111,13 @@ oauth_fields = r'''
         ActivityResultContracts.StartIntentSenderForResult()
     ) { activityResult ->
         if (activityResult.resultCode != Activity.RESULT_OK || activityResult.data == null) {
-            Toast.makeText(
-                requireContext(),
-                R.string.youtube_direct_import_cancelled,
-                Toast.LENGTH_LONG
-            ).show()
+            context?.let { ctx ->
+                Toast.makeText(
+                    ctx,
+                    R.string.youtube_direct_import_cancelled,
+                    Toast.LENGTH_LONG
+                ).show()
+            }
             return@registerForActivityResult
         }
 
@@ -143,8 +145,9 @@ if 'findPreference<Preference>("youtube_direct_import")' not in settings:
 companion_anchor = "    companion object {\n"
 oauth_methods = r'''
     private fun startDirectYouTubeImport() {
+        val ctx = context ?: return
         Toast.makeText(
-            requireContext(),
+            ctx,
             R.string.youtube_direct_import_start,
             Toast.LENGTH_LONG
         ).show()
@@ -186,7 +189,9 @@ oauth_methods = r'''
             val targetProfile = ProfileManager.ensureProfileForGoogleAccount(googleEmail)
             if (targetProfile.id != ProfileManager.getActiveProfileId()) {
                 DatabaseHolder.switchProfile(targetProfile.id)
-                PreferenceHelper.reloadAuthenticationPreferences(requireContext())
+                context?.applicationContext?.let {
+                    PreferenceHelper.reloadAuthenticationPreferences(it)
+                }
             }
         }
 
@@ -198,20 +203,23 @@ oauth_methods = r'''
             return
         }
 
-        Toast.makeText(
-            requireContext(),
-            R.string.youtube_direct_import_working,
-            Toast.LENGTH_LONG
-        ).show()
+        context?.let { ctx ->
+            Toast.makeText(
+                ctx,
+                R.string.youtube_direct_import_working,
+                Toast.LENGTH_LONG
+            ).show()
+        }
 
         lifecycleScope.launch(Dispatchers.IO) {
             runCatching {
                 YouTubeDirectImport.importAll(accessToken)
             }.onSuccess { imported ->
                 withContext(Dispatchers.Main) {
+                    val ctx = context ?: return@withContext
                     Toast.makeText(
-                        requireContext(),
-                        getString(
+                        ctx,
+                        ctx.getString(
                             R.string.youtube_direct_import_done,
                             imported.subscriptions,
                             imported.playlists,
@@ -233,9 +241,10 @@ oauth_methods = r'''
         val message = error.localizedMessage
             ?: error::class.java.simpleName
             ?: "Unknown error"
+        val ctx = context ?: return
         Toast.makeText(
-            requireContext(),
-            getString(R.string.youtube_direct_import_failed, message),
+            ctx,
+            ctx.getString(R.string.youtube_direct_import_failed, message),
             Toast.LENGTH_LONG
         ).show()
     }
@@ -270,23 +279,43 @@ xml_path.write_text(xml, encoding="utf-8")
 
 
 
-# Show the active local profile below the app name.
+# TubeLite J7.6 top bar: app title + visible profile shortcut.
 main_path = Path("upstream/app/src/main/java/com/github/libretube/ui/activities/MainActivity.kt")
 main = main_path.read_text(encoding="utf-8")
-if "import com.github.libretube.helpers.ProfileManager" not in main:
+if "import com.github.libretube.ui.dialogs.ProfileDialog" not in main:
     main = main.replace(
-        "import com.github.libretube.helpers.PreferenceHelper\n",
-        "import com.github.libretube.helpers.PreferenceHelper\n"
-        "import com.github.libretube.helpers.ProfileManager\n",
+        "import com.github.libretube.ui.dialogs.ImportTempPlaylistDialog\n",
+        "import com.github.libretube.ui.dialogs.ImportTempPlaylistDialog\n"
+        "import com.github.libretube.ui.dialogs.ProfileDialog\n",
         1,
     )
-if "binding.toolbar.subtitle = ProfileManager.getActiveProfile().name" not in main:
-    main = main.replace(
-        "binding.toolbar.title = ThemeHelper.getStyledAppName(this)",
-        "binding.toolbar.title = ThemeHelper.getStyledAppName(this)\n"
-        "        binding.toolbar.subtitle = ProfileManager.getActiveProfile().name",
-        1,
-    )
+
+main = main.replace(
+    "binding.toolbar.title = ThemeHelper.getStyledAppName(this)",
+    "binding.toolbar.title = getString(R.string.app_name)",
+    1,
+)
+
+profile_handler_anchor = """    /**
+     * Deselect all bottom bar items
+     */
+"""
+profile_handler = """    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.action_profile) {
+            if (!isFinishing && !isDestroyed) {
+                ProfileDialog().show(supportFragmentManager, "profile_dialog")
+            }
+            return true
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+"""
+if "R.id.action_profile" not in main:
+    if profile_handler_anchor not in main:
+        raise SystemExit("patch failed: MainActivity profile handler anchor")
+    main = main.replace(profile_handler_anchor, profile_handler + profile_handler_anchor, 1)
+
 main_path.write_text(main, encoding="utf-8")
 
 
@@ -454,7 +483,7 @@ notice = Path("upstream/TUBELITE_J7_MODIFICATIONS.md")
 notice.write_text(
     "# TubeLite J7 modifications\n\n"
     "Based on LibreTube v32.1 (GPL-3.0-or-later).\n"
-    "Changes: Android applicationId, display name, version metadata, ARMv7 targeting, direct Google library import, isolated profiles, simplified Home, Shorts tab, local Watch Later, playback timeout/SABR hardening, and Oreo PiP safeguards for Samsung Galaxy J7 Prime.\n"
+    "Changes: Android applicationId, display name, version metadata, ARMv7 targeting, direct Google library import, lifecycle-safe isolated profiles, YouTube-like navigation/Home/Shorts, local Watch Later, playback timeout/SABR hardening, selected upstream crash fixes, and Oreo safeguards for Samsung Galaxy J7 Prime.\n"
     "The upstream project and copyright notices remain intact.\n",
     encoding="utf-8",
 )
