@@ -59,18 +59,18 @@ jobs:
         run: |
           APK="$(find upstream/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
           test -n "$APK"
-          cp "$APK" NexoTube-J7-LibreTube-v32.1-j7.7-unsigned.apk
+          cp "$APK" NexoTube-J7-LibreTube-v32.1-j7.8-unsigned.apk
 
       - name: Archive patched source
         run: |
           rm -rf upstream/.git
-          zip -qr NexoTube-J7-LibreTube-v32.1-j7.7-source.zip upstream
+          zip -qr NexoTube-J7-LibreTube-v32.1-j7.8-source.zip upstream
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: NexoTube-J7-LibreTube-APK
-          path: NexoTube-J7-LibreTube-v32.1-j7.7-unsigned.apk
+          path: NexoTube-J7-LibreTube-v32.1-j7.8-unsigned.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -78,6 +78,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: NexoTube-J7-LibreTube-Source
-          path: NexoTube-J7-LibreTube-v32.1-j7.7-source.zip
+          path: NexoTube-J7-LibreTube-v32.1-j7.8-source.zip
           if-no-files-found: error
           retention-days: 30
