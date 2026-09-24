@@ -43,14 +43,14 @@ jobs:
         with:
           gradle-version: '9.5.0'
 
-      - name: Linux bridge contract tests (1345 assertions)
+      - name: Linux bridge contract tests (1348 assertions)
         working-directory: gptlewd-native-j7
         run: |
           set -euxo pipefail
           node tests/bridge_core_test.js | tee bridge-test.txt
           python3 tests/static_contract_test.py | tee static-test.txt
           grep -q 'PASS bridge_core assertions=919' bridge-test.txt
-          grep -q 'PASS static_contract assertions=426' static-test.txt
+          grep -q 'PASS static_contract assertions=429' static-test.txt
 
       - name: Install ImageMagick
         run: |
