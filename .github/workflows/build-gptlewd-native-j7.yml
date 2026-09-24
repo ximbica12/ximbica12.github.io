@@ -63,11 +63,13 @@ jobs:
           SRC=build/icon-source.jpg
           MASTER=build/icon-master.png
           CIRCLE=build/icon-circle.png
+          MASK=build/icon-mask.png
           mkdir -p build
           base64 -d gptlewd-web/icon-src/icon.b64 > "$SRC"
           identify "$SRC"
           convert "$SRC" -auto-orient -gravity center -resize 512x512^ -extent 512x512 "$MASTER"
-          convert "$MASTER" -alpha set             ( +clone -alpha extract -draw 'fill black rectangle 0,0 512,512 fill white circle 256,256 250,256' )             -compose CopyOpacity -composite "$CIRCLE"
+          convert -size 512x512 xc:none -fill white -draw 'circle 256,256 250,256' "$MASK"
+          convert "$MASTER" "$MASK" -alpha off -compose CopyOpacity -composite "$CIRCLE"
 
           for spec in 'mdpi 48' 'hdpi 72' 'xhdpi 96' 'xxhdpi 144' 'xxxhdpi 192'; do
             set -- $spec
