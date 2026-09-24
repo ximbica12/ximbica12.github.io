@@ -1,0 +1,237 @@
+/*
+ * GPTLewd J7 Turbo Theme
+ * Design goal: visibly different, dark/rose/lewd aesthetic without GPU-heavy
+ * blur, animated gradients or large shadow layers.
+ *
+ * Performance goal for Exynos 7870 + 3 GB RAM:
+ * - flat compositing
+ * - no backdrop-filter
+ * - no continuous decorative animation
+ * - system fonts (web fonts disabled natively)
+ * - content-visibility on long conversation turns
+ */
+
+:root {
+  color-scheme: dark !important;
+
+  --gptlewd-bg: #0b0308;
+  --gptlewd-panel: #140710;
+  --gptlewd-panel-2: #1d0a16;
+  --gptlewd-panel-3: #27101d;
+  --gptlewd-rose: #ff4fa3;
+  --gptlewd-rose-hot: #ff2d8f;
+  --gptlewd-rose-soft: #ff8bc5;
+  --gptlewd-wine: #6f1949;
+  --gptlewd-line: #54203e;
+  --gptlewd-text: #fff3f9;
+  --gptlewd-muted: #c9aaba;
+  --gptlewd-code: #10060c;
+}
+
+html,
+body {
+  background: var(--gptlewd-bg) !important;
+  color: var(--gptlewd-text) !important;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif !important;
+}
+
+body {
+  overscroll-behavior-y: none;
+}
+
+/* Static 2 px identity strip: visible branding with essentially no render cost. */
+body::before {
+  content: "";
+  position: fixed;
+  z-index: 2147483646;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(90deg, #7a174e 0%, #ff4fa3 50%, #7a174e 100%);
+}
+
+/* Core surfaces */
+main,
+nav,
+aside,
+header,
+[role="dialog"],
+[role="menu"],
+[role="listbox"] {
+  background-color: var(--gptlewd-bg) !important;
+  color: var(--gptlewd-text) !important;
+}
+
+/* Sidebars and modal-like panels */
+aside,
+nav,
+[role="dialog"],
+[role="menu"],
+[role="listbox"] {
+  border-color: var(--gptlewd-line) !important;
+}
+
+/* Eliminate expensive translucent compositing on the old Mali GPU. */
+header,
+nav,
+aside,
+[role="dialog"],
+[role="menu"],
+form,
+[class*="backdrop"],
+[class*="blur"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Chat turns: long chats no longer require every offscreen turn to stay painted. */
+[data-testid^="conversation-turn-"] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
+  border-bottom: 1px solid rgba(84, 32, 62, 0.38) !important;
+}
+
+/* User bubble */
+[data-message-author-role="user"] > div,
+[data-message-author-role="user"] [class*="rounded"] {
+  background-color: var(--gptlewd-panel-3) !important;
+  border-color: var(--gptlewd-wine) !important;
+  color: var(--gptlewd-text) !important;
+}
+
+/* Assistant content stays flatter for reading long answers. */
+[data-message-author-role="assistant"] {
+  color: var(--gptlewd-text) !important;
+}
+
+/* Composer: the most visible part of the redesign. */
+main form {
+  background-color: var(--gptlewd-panel-2) !important;
+  border: 1px solid var(--gptlewd-wine) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 1px 0 rgba(255, 79, 163, 0.12) !important;
+}
+
+main form textarea,
+main form [contenteditable="true"] {
+  color: var(--gptlewd-text) !important;
+  caret-color: var(--gptlewd-rose) !important;
+  background: transparent !important;
+}
+
+main form textarea::placeholder {
+  color: var(--gptlewd-muted) !important;
+}
+
+/* Buttons remain recognizable while getting a coherent rose/wine language. */
+button {
+  border-radius: 16px !important;
+}
+
+button[aria-pressed="true"],
+button[data-state="open"],
+button[data-state="checked"] {
+  background-color: var(--gptlewd-panel-3) !important;
+  color: var(--gptlewd-rose-soft) !important;
+}
+
+main form button {
+  border-color: rgba(255, 79, 163, 0.25) !important;
+}
+
+/* Links and selection */
+a {
+  color: var(--gptlewd-rose-soft) !important;
+}
+
+::selection {
+  background: #8d235c !important;
+  color: #ffffff !important;
+}
+
+/* Code/UI blocks */
+pre,
+code,
+kbd {
+  background-color: var(--gptlewd-code) !important;
+  border-color: var(--gptlewd-line) !important;
+}
+
+pre {
+  border-radius: 16px !important;
+}
+
+/* Inputs, popovers and menus */
+input,
+textarea,
+select,
+[role="menu"],
+[role="listbox"],
+[role="dialog"] {
+  border-color: var(--gptlewd-line) !important;
+}
+
+[role="menuitem"]:hover,
+[role="option"]:hover,
+[role="option"][aria-selected="true"] {
+  background-color: var(--gptlewd-panel-3) !important;
+}
+
+/* Remove the expensive decorative motion commonly used by skeletons/spinners,
+   while keeping functional transforms/transitions intact for controls. */
+[class*="animate-pulse"],
+[class*="animate-spin"],
+[class*="animate-bounce"],
+[class*="shimmer"],
+[class*="skeleton"] {
+  animation-duration: 1.2s !important;
+  animation-timing-function: steps(2, end) !important;
+}
+
+/* Avoid huge soft shadows on a one-cluster Mali GPU. */
+aside,
+nav,
+header,
+[role="dialog"],
+[role="menu"],
+[role="listbox"],
+main form,
+pre {
+  box-shadow: none !important;
+}
+
+/* Mobile/J7 geometry: large tap targets, compact gutters, no fake desktop layout. */
+@media (max-width: 800px) {
+  main {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  [data-testid^="conversation-turn-"] {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  main form {
+    margin-left: 6px !important;
+    margin-right: 6px !important;
+  }
+
+  button {
+    min-height: 40px;
+  }
+}
+
+/* Accessibility: respect users who explicitly request reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

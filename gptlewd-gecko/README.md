@@ -1,29 +1,23 @@
-# GPTLewd Gecko J7
+# GPTLewd J7 Turbo — Alpha 2
 
-Cliente Android single-site do ChatGPT usando GeckoView real, direcionado ao Galaxy J7 Prime / Android 8 / ARMv7.
+Single-site ChatGPT client using GeckoView, tuned specifically for Galaxy J7 Prime / Android 8 / ARMv7 / 240 DPI.
 
-## Arquitetura
+## Alpha 2 architecture
 
-- Android nativo
 - GeckoView 156 stable
-- uma única GeckoSession
-- sem barra de navegador, abas ou UI de browser
-- package próprio: `com.ximbica.gptlewd.gecko`
-- minSdk 26
-- ABI filtrada para `armeabi-v7a`
-- cookies/storage ficam no perfil persistente do GeckoRuntime
-- abre diretamente `https://chatgpt.com/`
+- built-in WebExtension theme loaded at document_start
+- no WebView and no browser chrome
+- package: com.ximbica.gptlewd.gecko.a2 (parallel test package)
+- minSdk 26 / ARMv7 only
+- 240 DPI runtime override
+- dark native + web color scheme
+- WebGL MSAA disabled
+- Gecko low-memory detection enabled
+- web fonts disabled; system-font theme
+- media suspended while the session is inactive
+- session active/focused/priority follows Activity lifecycle
+- long ChatGPT turns use CSS content-visibility
+- expensive backdrop blur and giant shadows removed from the themed UI
+- launcher icon generated from the user-provided art
 
-## Ícone
-
-O build gera os mipmaps a partir da imagem fornecida pelo usuário em
-`gptlewd-web/icon-src/icon.b64`. Não redesenha a arte; apenas faz crop central quadrado e resize para as densidades Android.
-
-## Próximas etapas
-
-Depois de confirmar boot, login e Cloudflare no J7:
-- WebExtension interna só para chatgpt.com
-- tema GPTLewd completo
-- uploads/downloads nativos
-- permissões de câmera/microfone
-- restauração de sessão mais avançada
+The Alpha 1 is intentionally left untouched so the known-good logged-in build stays available during the Alpha 2 test.

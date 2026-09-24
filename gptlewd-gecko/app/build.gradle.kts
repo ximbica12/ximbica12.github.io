@@ -8,11 +8,12 @@ android {
     compileSdkMinor = 1
 
     defaultConfig {
-        applicationId = "com.ximbica.gptlewd.gecko"
+        // Alpha 2 uses a parallel package so the working Alpha 1 stays installed.
+        applicationId = "com.ximbica.gptlewd.gecko.a2"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0-alpha1"
+        versionCode = 2
+        versionName = "2.0.0-alpha2-j7"
 
         ndk {
             abiFilters += listOf("armeabi-v7a")
@@ -35,6 +36,7 @@ android {
 
     packaging {
         jniLibs {
+            // Required for reliable native-library extraction on old Samsung/Android 8 installers.
             useLegacyPackaging = true
         }
         resources {

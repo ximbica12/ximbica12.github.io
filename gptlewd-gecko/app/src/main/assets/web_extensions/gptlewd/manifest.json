@@ -1,0 +1,23 @@
+{
+  "manifest_version": 2,
+  "name": "GPTLewd J7 Theme Engine",
+  "version": "2.0.0",
+  "description": "Low-overhead ChatGPT theme tuned for Android 8 and Galaxy J7 Prime.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "gptlewd-j7-theme@ximbica.local"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "css": [
+        "theme.css"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ]
+}

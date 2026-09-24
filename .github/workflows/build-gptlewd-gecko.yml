@@ -61,23 +61,28 @@ jobs:
         working-directory: gptlewd-gecko
         run: gradle :app:assembleDebug --stacktrace
 
-      - name: Verify APK contents
+      - name: Verify J7 APK
         run: |
-          set -eux
+          set -euxo pipefail
           APK=gptlewd-gecko/app/build/outputs/apk/debug/app-debug.apk
           test -f "$APK"
-          unzip -l "$APK" | grep -E 'lib/armeabi-v7a/|res/'
+
+          unzip -l "$APK" | grep 'lib/armeabi-v7a/'
           if unzip -l "$APK" | grep -q 'lib/arm64-v8a/'; then
             echo "Unexpected arm64 library in ARMv7 build"
             exit 1
           fi
+
+          unzip -l "$APK" | grep 'assets/web_extensions/gptlewd/manifest.json'
+          unzip -l "$APK" | grep 'assets/web_extensions/gptlewd/theme.css'
+
           sha256sum "$APK" | tee gptlewd-gecko/app-debug.sha256
           ls -lh "$APK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GPTLewd-Gecko-J7-alpha1
+          name: GPTLewd-J7-Turbo-alpha2
           path: |
             gptlewd-gecko/app/build/outputs/apk/debug/app-debug.apk
             gptlewd-gecko/app-debug.sha256
