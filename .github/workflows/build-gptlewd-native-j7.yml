@@ -1,0 +1,136 @@
+name: Build and Test GPTLewd Native J7
+
+on:
+  push:
+    branches: [gptlewd-native-j7]
+    paths:
+      - 'gptlewd-native-j7/**'
+      - 'gptlewd-web/icon-src/icon.b64'
+      - '.github/workflows/build-gptlewd-native-j7.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reconstruct native source tree
+        run: |
+          set -euxo pipefail
+          mkdir -p gptlewd-native-j7
+          base64 -d gptlewd-native-j7-source.b64 | tar -xzf - -C gptlewd-native-j7
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Gradle 9.5
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.0'
+
+      - name: Linux bridge contract tests (1345 assertions)
+        working-directory: gptlewd-native-j7
+        run: |
+          set -euxo pipefail
+          node tests/bridge_core_test.js | tee bridge-test.txt
+          python3 tests/static_contract_test.py | tee static-test.txt
+          grep -q 'PASS bridge_core assertions=919' bridge-test.txt
+          grep -q 'PASS static_contract assertions=426' static-test.txt
+
+      - name: Install ImageMagick
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y imagemagick
+
+      - name: Generate rounded Android icon from user art
+        run: |
+          set -euxo pipefail
+          SRC=build/icon-source.jpg
+          MASTER=build/icon-master.png
+          CIRCLE=build/icon-circle.png
+          mkdir -p build
+          base64 -d gptlewd-web/icon-src/icon.b64 > "$SRC"
+          identify "$SRC"
+          convert "$SRC" -auto-orient -gravity center -resize 512x512^ -extent 512x512 "$MASTER"
+          convert "$MASTER" -alpha set             ( +clone -alpha extract -draw 'fill black rectangle 0,0 512,512 fill white circle 256,256 250,256' )             -compose CopyOpacity -composite "$CIRCLE"
+
+          for spec in 'mdpi 48' 'hdpi 72' 'xhdpi 96' 'xxhdpi 144' 'xxxhdpi 192'; do
+            set -- $spec
+            D=$1; S=$2
+            mkdir -p "gptlewd-native-j7/app/src/main/res/mipmap-$D"
+            convert "$CIRCLE" -resize ${S}x${S} "gptlewd-native-j7/app/src/main/res/mipmap-$D/ic_launcher.png"
+            cp "gptlewd-native-j7/app/src/main/res/mipmap-$D/ic_launcher.png" "gptlewd-native-j7/app/src/main/res/mipmap-$D/ic_launcher_round.png"
+            convert "$MASTER" -resize ${S}x${S} "gptlewd-native-j7/app/src/main/res/mipmap-$D/ic_launcher_foreground.png"
+          done
+
+      - name: Android lint
+        working-directory: gptlewd-native-j7
+        run: gradle :app:lintDebug --stacktrace
+
+      - name: Android unit-test task
+        working-directory: gptlewd-native-j7
+        run: gradle :app:testDebugUnitTest --stacktrace
+
+      - name: Assemble APK
+        working-directory: gptlewd-native-j7
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: APK integrity and J7 contract gates
+        run: |
+          set -euxo pipefail
+          APK=gptlewd-native-j7/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK"
+          unzip -t "$APK" >/dev/null
+
+          AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
+          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -1)
+
+          "$AAPT" dump badging "$APK" | tee gptlewd-native-j7/apk-badging.txt
+          grep -q "package: name='com.ximbica.gptlewd.nativej7'" gptlewd-native-j7/apk-badging.txt
+          grep -q "sdkVersion:'26'" gptlewd-native-j7/apk-badging.txt
+
+          unzip -l "$APK" | tee gptlewd-native-j7/apk-files.txt
+          grep -q 'lib/armeabi-v7a/' gptlewd-native-j7/apk-files.txt
+          ! grep -q 'lib/arm64-v8a/' gptlewd-native-j7/apk-files.txt
+          ! grep -q 'lib/x86/' gptlewd-native-j7/apk-files.txt
+          ! grep -q 'lib/x86_64/' gptlewd-native-j7/apk-files.txt
+          grep -q 'assets/web_extensions/nativebridge/manifest.json' gptlewd-native-j7/apk-files.txt
+          grep -q 'assets/web_extensions/nativebridge/content.js' gptlewd-native-j7/apk-files.txt
+          grep -q 'assets/web_extensions/nativebridge/bridge_core.js' gptlewd-native-j7/apk-files.txt
+
+          "$APKSIGNER" verify --verbose "$APK" | tee gptlewd-native-j7/apksigner.txt
+          "$ZIPALIGN" -c -v 4 "$APK" | tee gptlewd-native-j7/zipalign.txt
+          sha256sum "$APK" | tee gptlewd-native-j7/app-debug.sha256
+          ls -lh "$APK"
+
+      - name: Upload validated APK and reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: GPTLewd-Native-J7-validated
+          path: |
+            gptlewd-native-j7/app/build/outputs/apk/debug/app-debug.apk
+            gptlewd-native-j7/app-debug.sha256
+            gptlewd-native-j7/apk-badging.txt
+            gptlewd-native-j7/apk-files.txt
+            gptlewd-native-j7/apksigner.txt
+            gptlewd-native-j7/zipalign.txt
+            gptlewd-native-j7/bridge-test.txt
+            gptlewd-native-j7/static-test.txt
+          if-no-files-found: error
+          retention-days: 30
