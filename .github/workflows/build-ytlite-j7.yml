@@ -53,18 +53,29 @@ jobs:
 
           test -f "$UBO_DIR/manifest.json"
           test -f "$SB_DIR/manifest.json"
+          grep -q '"id": "uBlock0@raymondhill.net"' "$UBO_DIR/manifest.json"
+          grep -q 'sponsorBlocker@ajay.app' "$SB_DIR/manifest.json"
 
       - name: Build APK
         working-directory: ytlite-j7
         run: |
+          set -euxo pipefail
           gradle :app:assembleDebug --no-daemon --stacktrace
-          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/YT-Lite-J7-v0.1.0.apk
-          sha256sum app/build/outputs/apk/debug/YT-Lite-J7-v0.1.0.apk
+          OUT="app/build/outputs/apk/debug/YT-Lite-J7-v0.2.0.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "$OUT"
+          unzip -t "$OUT" >/dev/null
+          unzip -l "$OUT" | grep 'lib/armeabi-v7a/'
+          ! unzip -l "$OUT" | grep -q 'lib/arm64-v8a/'
+          ! unzip -l "$OUT" | grep -q 'lib/x86/'
+          ! unzip -l "$OUT" | grep -q 'lib/x86_64/'
+          unzip -l "$OUT" | grep 'assets/extensions/ytlite/background.js'
+          unzip -l "$OUT" | grep 'assets/extensions/ytlite/shield.css'
+          sha256sum "$OUT"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: YT-Lite-J7-v0.1.0
-          path: ytlite-j7/app/build/outputs/apk/debug/YT-Lite-J7-v0.1.0.apk
+          name: YT-Lite-J7-v0.2.0
+          path: ytlite-j7/app/build/outputs/apk/debug/YT-Lite-J7-v0.2.0.apk
           if-no-files-found: error
           retention-days: 30

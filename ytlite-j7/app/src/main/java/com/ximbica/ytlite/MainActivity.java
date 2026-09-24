@@ -6,11 +6,15 @@ import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 
 import org.mozilla.geckoview.AllowOrDeny;
 import org.mozilla.geckoview.ContentBlocking;
@@ -21,17 +25,41 @@ import org.mozilla.geckoview.GeckoSession;
 import org.mozilla.geckoview.GeckoSessionSettings;
 import org.mozilla.geckoview.GeckoView;
 import org.mozilla.geckoview.WebExtension;
+import org.mozilla.geckoview.WebExtensionController;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainActivity extends Activity {
     private static final String HOME =
-            "https://m.youtube.com/?persist_app=1&app=m&hl=pt-BR&gl=BR";
+            "https://m.youtube.com/?persist_app=1&app=m&hl=pt-BR&gl=BR&cc_lang_pref=pt&cc_load_policy=1";
+
+    private static final String UBO_ID = "uBlock0@raymondhill.net";
+    private static final String SPONSOR_ID = "sponsorBlocker@ajay.app";
+    private static final String YTLITE_ID = "ytlite-j7@ximbica.local";
+
+    private static final Set<String> REQUIRED_EXTENSIONS =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+                    UBO_ID, SPONSOR_ID, YTLITE_ID)));
+
     private static GeckoRuntime runtime;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Set<String> readyExtensions =
+            Collections.synchronizedSet(new HashSet<>());
 
     private GeckoSession session;
     private GeckoView geckoView;
     private ProgressBar progress;
+    private TextView blockerStatus;
+
     private boolean canGoBack = false;
-    private boolean extensionsStarted = false;
+    private boolean browserStarted = false;
+    private boolean extensionsInstallStarted = false;
+    private boolean startupQueued = false;
+    private String pendingUrl = HOME;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -50,6 +78,17 @@ public class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
+        blockerStatus = new TextView(this);
+        blockerStatus.setTextColor(Color.WHITE);
+        blockerStatus.setTextSize(16f);
+        blockerStatus.setGravity(Gravity.CENTER);
+        blockerStatus.setPadding(dp(28), dp(28), dp(28), dp(28));
+        blockerStatus.setText("Preparando bloqueio 0/3…");
+        FrameLayout.LayoutParams statusParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT);
+        root.addView(blockerStatus, statusParams);
+
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setMax(100);
         progress.setVisibility(View.GONE);
@@ -58,13 +97,14 @@ public class MainActivity extends Activity {
         root.addView(progress, pp);
 
         setContentView(root);
+        pendingUrl = resolveStartUrl(getIntent());
 
         if (runtime == null) {
             ContentBlocking.Settings blocking = new ContentBlocking.Settings.Builder()
                     .antiTracking(ContentBlocking.AntiTracking.DEFAULT)
                     .safeBrowsing(ContentBlocking.SafeBrowsing.DEFAULT)
                     .cookieBehavior(ContentBlocking.CookieBehavior.ACCEPT_ALL)
-                    .enhancedTrackingProtectionLevel(ContentBlocking.EtpLevel.DEFAULT)
+                    .enhancedTrackingProtectionLevel(ContentBlocking.EtpLevel.STRICT)
                     .build();
 
             GeckoRuntimeSettings runtimeSettings = new GeckoRuntimeSettings.Builder()
@@ -77,7 +117,77 @@ public class MainActivity extends Activity {
             runtime = GeckoRuntime.create(getApplicationContext(), runtimeSettings);
         }
 
-        installExtensionsOnce();
+        WebExtensionController controller = runtime.getWebExtensionController();
+        controller.setAddonManagerDelegate(new WebExtensionController.AddonManagerDelegate() {
+            @Override
+            public void onReady(WebExtension extension) {
+                markExtensionReady(extension);
+            }
+        });
+
+        installExtensionsFailClosed();
+    }
+
+    private synchronized void installExtensionsFailClosed() {
+        if (extensionsInstallStarted) return;
+        extensionsInstallStarted = true;
+
+        ensureExtension("resource://android/assets/extensions/ublock/", UBO_ID);
+        ensureExtension("resource://android/assets/extensions/sponsorblock/", SPONSOR_ID);
+        ensureExtension("resource://android/assets/extensions/ytlite/", YTLITE_ID);
+    }
+
+    private void ensureExtension(String uri, String id) {
+        runtime.getWebExtensionController()
+                .ensureBuiltIn(uri, id)
+                .accept(
+                        extension -> {
+                            // GeckoView 121+ no longer guarantees install/ensure waits
+                            // for extension startup. If metadata is already populated, this
+                            // extension was already fully ready; otherwise onReady() will fire.
+                            if (extension != null
+                                    && extension.metaData != null
+                                    && extension.metaData.baseUrl != null) {
+                                markExtensionReady(extension);
+                            }
+                        },
+                        error -> runOnUiThread(() -> {
+                            blockerStatus.setText(
+                                    "Falha ao iniciar o bloqueador.\n" +
+                                    "O YouTube não será aberto sem proteção.");
+                            progress.setVisibility(View.GONE);
+                        }));
+    }
+
+    private void markExtensionReady(WebExtension extension) {
+        if (extension == null || !REQUIRED_EXTENSIONS.contains(extension.id)) return;
+
+        readyExtensions.add(extension.id);
+        runOnUiThread(() -> {
+            blockerStatus.setText(
+                    "Preparando bloqueio " + readyExtensions.size() + "/3…");
+            maybeStartBrowser();
+        });
+    }
+
+    private synchronized void maybeStartBrowser() {
+        if (browserStarted || startupQueued) return;
+        if (!readyExtensions.containsAll(REQUIRED_EXTENSIONS)) return;
+
+        startupQueued = true;
+        blockerStatus.setText("Bloqueio ativo. Abrindo YouTube…");
+
+        // Give uBO's background page a brief warm-up after GeckoView's onReady().
+        // We prefer a short protected splash to ever showing an unfiltered first load.
+        mainHandler.postDelayed(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            startBrowser();
+        }, 1400);
+    }
+
+    private synchronized void startBrowser() {
+        if (browserStarted) return;
+        browserStarted = true;
 
         GeckoSessionSettings sessionSettings = new GeckoSessionSettings.Builder()
                 .userAgentMode(GeckoSessionSettings.USER_AGENT_MODE_MOBILE)
@@ -155,15 +265,22 @@ public class MainActivity extends Activity {
 
         session.open(runtime);
         geckoView.setSession(session);
+        blockerStatus.setVisibility(View.GONE);
+        session.loadUri(pendingUrl);
+    }
 
+    private String resolveStartUrl(Intent intent) {
         String start = HOME;
-        Intent intent = getIntent();
-        if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null) {
+
+        if (intent != null
+                && Intent.ACTION_VIEW.equals(intent.getAction())
+                && intent.getData() != null) {
             String incoming = intent.getData().toString();
+
             if (incoming.startsWith("https://youtu.be/")) {
                 String id = intent.getData().getLastPathSegment();
                 if (id != null && !id.isEmpty()) {
-                    start = "https://m.youtube.com/watch?v=" + id + "&hl=pt-BR&gl=BR&cc_lang_pref=pt&cc_load_policy=1";
+                    start = "https://m.youtube.com/watch?v=" + id;
                 }
             } else if (incoming.contains("youtube.com")) {
                 start = incoming;
@@ -171,32 +288,10 @@ public class MainActivity extends Activity {
         }
 
         if (start.contains("youtube.com") && !start.contains("hl=")) {
-            start += (start.contains("?") ? "&" : "?") + "hl=pt-BR&gl=BR&cc_lang_pref=pt&cc_load_policy=1";
+            start += (start.contains("?") ? "&" : "?")
+                    + "hl=pt-BR&gl=BR&cc_lang_pref=pt&cc_load_policy=1";
         }
-        session.loadUri(start);
-    }
-
-    private synchronized void installExtensionsOnce() {
-        if (extensionsStarted) return;
-        extensionsStarted = true;
-
-        ensureExtension(
-                "resource://android/assets/extensions/ublock/",
-                "uBlock0@raymondhill.net");
-        ensureExtension(
-                "resource://android/assets/extensions/sponsorblock/",
-                "sponsorBlocker@ajay.app");
-        ensureExtension(
-                "resource://android/assets/extensions/ytlite/",
-                "ytlite-j7@ximbica.local");
-    }
-
-    private void ensureExtension(String uri, String id) {
-        runtime.getWebExtensionController()
-                .ensureBuiltIn(uri, id)
-                .accept(
-                        extension -> { },
-                        error -> { });
+        return start;
     }
 
     @Override
@@ -212,16 +307,15 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (session != null && intent != null && intent.getData() != null) {
-            String url = intent.getData().toString();
-            if (url.startsWith("https://")) {
-                session.loadUri(url);
-            }
+        pendingUrl = resolveStartUrl(intent);
+        if (browserStarted && session != null) {
+            session.loadUri(pendingUrl);
         }
     }
 
     @Override
     protected void onDestroy() {
+        mainHandler.removeCallbacksAndMessages(null);
         if (session != null) {
             session.close();
             session = null;

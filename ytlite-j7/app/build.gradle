@@ -10,8 +10,8 @@ android {
         applicationId "com.ximbica.ytlite"
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName "0.1.0"
+        versionCode 2
+        versionName "0.2.0"
         ndk {
             abiFilters "armeabi-v7a"
         }
@@ -44,6 +44,7 @@ android {
 }
 
 dependencies {
+    // GeckoView 153 keeps official Android 8 / armeabi-v7a support.
     def geckoviewVersion = "153.0.20260730155536"
     implementation "org.mozilla.geckoview:geckoview-armeabi-v7a:$geckoviewVersion"
 }

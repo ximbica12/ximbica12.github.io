@@ -1,0 +1,28 @@
+/* Applied at document_start so ad containers never flash on screen. */
+ytm-promoted-sparkles-web-renderer,
+ytm-promoted-video-renderer,
+ytm-display-ad-renderer,
+ytm-ad-slot-renderer,
+ytm-companion-ad-renderer,
+ytm-promoted-sparkles-text-search-renderer,
+ytm-search-pyv-renderer,
+ytm-mealbar-promo-renderer,
+ytm-app-promo,
+ytm-promo-layer,
+.ytp-ad-module,
+.ytp-ad-overlay-container,
+.ytp-ad-player-overlay,
+.video-ads,
+#player-ads,
+#masthead-ad,
+#panels ytm-engagement-panel-section-list-renderer[target-id*="ads"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Remove Shorts shelves from Home, but do not remove the Shorts destination itself. */
+body:not([data-ytlite-shorts-page="1"]) ytm-reel-shelf-renderer {
+  display: none !important;
+}

@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
-  "name": "YT Lite J7 Tweaks",
-  "version": "0.1.0",
-  "description": "J7-focused YouTube mobile tweaks: H.264, app-like cleanup and PT-BR captions.",
+  "name": "YT Lite J7 Shield",
+  "version": "0.2.0",
+  "description": "Fail-closed YouTube ad shield, H.264 preference, UI cleanup and PT-BR captions for the J7 Prime.",
   "browser_specific_settings": {
     "gecko": {
       "id": "ytlite-j7@ximbica.local",
@@ -13,15 +13,21 @@
     }
   },
   "permissions": [
-    "https://*.youtube.com/*",
-    "https://youtu.be/*"
+    "webRequest",
+    "webRequestBlocking",
+    "<all_urls>"
   ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
   "content_scripts": [
     {
       "matches": [
         "https://*.youtube.com/*",
         "https://youtu.be/*"
       ],
+      "css": ["shield.css"],
       "js": ["content.js"],
       "run_at": "document_start",
       "all_frames": false
