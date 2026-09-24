@@ -1,0 +1,25 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.ximbica.jigglelab'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.ximbica.jigglelab"
+        minSdk 26
+        targetSdk 34
+        versionCode 3
+        versionName "3.0-j7"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+dependencies {
+}

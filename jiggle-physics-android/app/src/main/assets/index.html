@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>MILF Jiggle Lab</title>
+<style>
+:root{--bg:#080910;--panel:#11131ddd;--line:#ffffff18;--text:#f6f6fb;--muted:#9699aa;--pink:#ff6eaf;--violet:#986cff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;background:linear-gradient(#0d0f19,#07080d)}
+#top{position:fixed;top:max(8px,env(safe-area-inset-top));left:8px;right:8px;display:flex;justify-content:space-between;pointer-events:none}
+.badge{background:#0b0d15dd;border:1px solid var(--line);border-radius:14px;padding:6px 9px;font-size:10px;color:#c7c9d4}
+#panel{position:fixed;left:6px;right:6px;bottom:max(6px,env(safe-area-inset-bottom));background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+#head{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line)}
+#title{font-size:12px;font-weight:900}.sub{font-size:9px;color:var(--muted)}
+#toggle{background:transparent;border:0;color:white;font-size:16px;padding:3px 7px}
+#controls{padding:7px 8px 8px}
+#panel.closed #controls{display:none}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:6px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px}
+button{border:1px solid var(--line);background:#1a1c28;color:white;border-radius:10px;min-height:34px;padding:7px 3px;font-size:10px;font-weight:800}
+button:active{transform:scale(.97)}
+button.active,button.primary{border-color:transparent;background:linear-gradient(135deg,var(--pink),var(--violet))}
+.row{display:grid;grid-template-columns:60px 1fr 36px;gap:6px;align-items:center;margin:4px 0}
+.row label,.val{font-size:9px;color:var(--muted)}.val{text-align:right}
+input[type=range]{width:100%;accent-color:var(--pink)}
+#help{font-size:8px;color:#7f8291;line-height:1.35;margin-top:5px}
+#toast{position:fixed;top:42px;left:50%;transform:translateX(-50%);background:#0d0f18e8;border:1px solid var(--line);border-radius:999px;padding:6px 9px;font-size:9px;opacity:0;pointer-events:none}
+#loading{position:fixed;inset:0;z-index:5;display:grid;place-items:center;background:#080910}
+#loading div{font-size:12px;color:#d9d9e4;text-align:center}
+#loading small{display:block;color:#8c8f9f;margin-top:6px}
+</style>
+</head>
+<body>
+<div id="loading"><div><b>MILF JIGGLE LAB V3</b><small id="loadingText">Carregando modelo leve…</small></div></div>
+<canvas id="c"></canvas>
+<div id="top"><div class="badge"><b>MILF JIGGLE LAB V3</b></div><div class="badge" id="status">boot…</div></div>
+<div id="toast"></div>
+
+<div id="panel">
+  <div id="head">
+    <div><div id="title">Curvy Physics</div><div class="sub" id="rigLabel">aguardando rig…</div></div>
+    <button id="toggle">⌄</button>
+  </div>
+  <div id="controls">
+    <div class="grid4">
+      <button class="primary" id="mega">MEGA</button>
+      <button id="shake">SHAKE</button>
+      <button id="focus">FOCO</button>
+      <button id="slow">SLOW</button>
+    </div>
+    <div class="grid3">
+      <button class="pose active" data-pose="idle">Idle</button>
+      <button class="pose" data-pose="sway">Sway</button>
+      <button class="pose" data-pose="dance">Dance</button>
+    </div>
+
+    <div class="row"><label>Peitos</label><input id="bust" type="range" min="1.0" max="2.45" value="1.85" step="0.05"><span class="val" id="bustV">1.85</span></div>
+    <div class="row"><label>Curvas</label><input id="curves" type="range" min="0.95" max="1.45" value="1.22" step="0.01"><span class="val" id="curvesV">1.22</span></div>
+    <div class="row"><label>Moleza</label><input id="soft" type="range" min="0" max="1" value="0.66" step="0.01"><span class="val" id="softV">66%</span></div>
+    <div class="row"><label>Render</label><input id="quality" type="range" min="0.42" max="0.72" value="0.54" step="0.02"><span class="val" id="qualityV">54%</span></div>
+
+    <div id="help">Arraste diretamente o busto e solte. Toque rápido = impulso. Fora dele, arraste para girar; pinça = zoom. V3 usa glTF direto, sem runtime VRM, resolução adaptativa e modelo leve.</div>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="vendor/GLTFLoader.js"></script>
+<script>
+(function(){
+'use strict';
+
+const $=id=>document.getElementById(id);
+const canvas=$('c'),statusEl=$('status'),rigLabel=$('rigLabel'),toastEl=$('toast');
+const loading=$('loading'),loadingText=$('loadingText');
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function toast(s){toastEl.textContent=s;toastEl.style.opacity='1';clearTimeout(toast.t);toast.t=setTimeout(()=>toastEl.style.opacity='0',850);}
+
+if(!window.THREE||!THREE.GLTFLoader){loadingText.textContent='Falha: engine 3D ausente';return;}
+
+const renderer=new THREE.WebGLRenderer({canvas,antialias:false,alpha:false,powerPreference:'high-performance',preserveDrawingBuffer:false});
+renderer.setPixelRatio(1);
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.setClearColor(0x080910,1);
+renderer.sortObjects=false;
+
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(29,1,.05,12);
+const cam={yaw:0,pitch:-.02,dist:2.48,targetY:1.18,focus:false};
+let renderScale=.54,autoScale=true;
+
+const modelRoot=new THREE.Group();scene.add(modelRoot);
+
+let model=null,bustReady=false,pose='idle',slow=false,shakeUntil=0;
+const bones={},rest={};
+const physics={
+  k:21,d:4.1,m:1.45,limit:.105,
+  sides:[
+    {b1:null,b2:null,p:new THREE.Vector3(),v:new THREE.Vector3(),imp:new THREE.Vector3()},
+    {b1:null,b2:null,p:new THREE.Vector3(),v:new THREE.Vector3(),imp:new THREE.Vector3()}
+  ]
+};
+const morph={bust:1.85,curves:1.22};
+
+const hitMat=new THREE.MeshBasicMaterial({transparent:true,opacity:.001,depthWrite:false});
+const hitGeo=new THREE.SphereGeometry(.17,8,6);
+const hitTargets=[0,1].map(i=>{const m=new THREE.Mesh(hitGeo,hitMat);m.userData.i=i;scene.add(m);return m;});
+
+function find(name){let f=null;if(!model)return null;model.traverse(o=>{if(!f&&o.name===name)f=o;});return f;}
+function findRx(rx){let f=null;if(!model)return null;model.traverse(o=>{if(!f&&rx.test(o.name||''))f=o;});return f;}
+function keep(k,o){if(!o)return;bones[k]=o;rest[k]={p:o.position.clone(),q:o.quaternion.clone(),s:o.scale.clone()};}
+function reset(k){const o=bones[k],r=rest[k];if(!o||!r)return;o.position.copy(r.p);o.quaternion.copy(r.q);o.scale.copy(r.s);}
+
+const q=new THREE.Quaternion(),eul=new THREE.Euler();
+function rot(k,x,y,z){const o=bones[k],r=rest[k];if(!o||!r)return;eul.set(x,y,z,'XYZ');q.setFromEuler(eul);o.quaternion.copy(r.q).multiply(q);}
+
+function setupRig(){
+  const L1=find('J_Sec_L_Bust1')||findRx(/L.*Bust.*1/i);
+  const L2=find('J_Sec_L_Bust2')||findRx(/L.*Bust.*2/i);
+  const R1=find('J_Sec_R_Bust1')||findRx(/R.*Bust.*1/i);
+  const R2=find('J_Sec_R_Bust2')||findRx(/R.*Bust.*2/i);
+  physics.sides[0].b1=L1;physics.sides[0].b2=L2;
+  physics.sides[1].b1=R1;physics.sides[1].b2=R2;
+
+  keep('hips',find('J_Bip_C_Hips')||findRx(/Hips$/i));
+  keep('spine',find('J_Bip_C_Spine')||findRx(/Spine$/i));
+  keep('chest',find('J_Bip_C_Chest')||findRx(/(^|_)Chest$/i));
+  keep('upperChest',find('J_Bip_C_UpperChest')||findRx(/UpperChest$/i));
+  keep('head',find('J_Bip_C_Head')||findRx(/Head$/i));
+  keep('lArm',find('J_Bip_L_UpperArm')||findRx(/L.*UpperArm/i));
+  keep('rArm',find('J_Bip_R_UpperArm')||findRx(/R.*UpperArm/i));
+
+  [['L1',L1],['L2',L2],['R1',R1],['R2',R2]].forEach(x=>keep(x[0],x[1]));
+
+  bustReady=!!(L1&&R1);
+  rigLabel.textContent=bustReady?'Bust rig real · modo MILF ativo':'bust bones não encontrados';
+  if(bustReady)toast('Rig leve conectado ✓');
+}
+
+function applyPose(t){
+  ['hips','spine','chest','upperChest','head','lArm','rArm'].forEach(reset);
+
+  let sway=.014*Math.sin(t*.8),tw=.012*Math.sin(t*.62),bob=.002*Math.sin(t*1.4),drive=.10*Math.cos(t*1.4);
+  if(pose==='sway'){sway=.055*Math.sin(t*1.7);tw=.045*Math.sin(t*1.2);bob=.006*Math.abs(Math.sin(t*1.7));drive=.5*Math.cos(t*1.7);}
+  if(pose==='dance'){sway=.105*Math.sin(t*2.5);tw=.09*Math.sin(t*2.0);bob=.018*Math.abs(Math.sin(t*4));drive=1.8*Math.cos(t*4);}
+
+  if(bones.hips){bones.hips.position.copy(rest.hips.p);bones.hips.position.y+=bob;}
+  rot('hips',0,tw,sway*.34);rot('spine',0,-tw*.45,-sway*.35);rot('chest',0,tw*.35,sway*.55);rot('upperChest',0,-tw*.2,sway*.25);
+  rot('head',0,-tw*.25,-sway*.12);rot('lArm',.04,0,-1.15-sway*.55);rot('rArm',.04,0,1.15+sway*.55);
+
+  applyMorph();
+  return drive;
+}
+
+function applyMorph(){
+  const c=morph.curves;
+  if(bones.hips){bones.hips.scale.copy(rest.hips.s);bones.hips.scale.x*=1+(c-1)*.95;bones.hips.scale.z*=1+(c-1)*.50;}
+  if(bones.spine){bones.spine.scale.copy(rest.spine.s);bones.spine.scale.x*=1-(c-1)*.18;}
+  if(bones.chest){bones.chest.scale.copy(rest.chest.s);bones.chest.scale.x*=1+(c-1)*.42;bones.chest.scale.z*=1+(c-1)*.30;}
+  if(bones.upperChest){bones.upperChest.scale.copy(rest.upperChest.s);bones.upperChest.scale.x*=1+(c-1)*.20;}
+  if(bones.head){bones.head.scale.copy(rest.head.s).multiplyScalar(.95);}
+}
+
+function stepPhysics(dt,drive,t){
+  dt=Math.min(.04,dt*(slow?.38:1));
+  const shake=t<shakeUntil;
+  for(let i=0;i<2;i++){
+    const b=physics.sides[i],p=b.p,v=b.v;
+    if(shake){b.imp.x+=(i?1:-1)*Math.sin(t*37+i)*.10;b.imp.y+=Math.cos(t*31+i)*.12;b.imp.z+=Math.sin(t*43+i)*.09;}
+    const fx=-physics.k*p.x-physics.d*v.x+b.imp.x;
+    const fy=-physics.k*p.y-physics.d*v.y+b.imp.y-drive*.28;
+    const fz=-physics.k*p.z-physics.d*v.z+b.imp.z+Math.abs(drive)*.04;
+    v.x+=(fx/physics.m)*dt;v.y+=(fy/physics.m)*dt;v.z+=(fz/physics.m)*dt;
+    p.addScaledVector(v,dt);b.imp.multiplyScalar(.74);
+    if(p.length()>physics.limit){p.setLength(physics.limit);v.multiplyScalar(.70);}
+  }
+}
+
+function applyBust(){
+  if(!bustReady)return;
+  physics.sides.forEach((b,i)=>{
+    const k1=i?'R1':'L1',k2=i?'R2':'L2',r1=rest[k1],r2=rest[k2],side=i?-1:1;
+    if(!b.b1||!r1)return;
+    const p=b.p;
+    const s1=.78+morph.bust*.55;
+    b.b1.scale.copy(r1.s).multiplyScalar(s1);
+    eul.set(clamp(-p.y*8,-.5,.5),clamp(p.x*7,-.42,.42),clamp(-p.x*side*3.2+p.z*side*1.2,-.35,.35),'XYZ');q.setFromEuler(eul);
+    b.b1.position.copy(r1.p);b.b1.position.x+=p.x*.17;b.b1.position.y+=p.y*.18;b.b1.position.z+=p.z*.22;b.b1.quaternion.copy(r1.q).multiply(q);
+    if(b.b2&&r2){
+      const s2=.94+(morph.bust-1)*.16;
+      b.b2.scale.copy(r2.s).multiplyScalar(s2);
+      eul.set(-p.y*4.8,p.x*4.2,-p.x*side*1.7,'XYZ');q.setFromEuler(eul);
+      b.b2.position.copy(r2.p);b.b2.position.x+=p.x*.08;b.b2.position.y+=p.y*.09;b.b2.position.z+=p.z*.12;b.b2.quaternion.copy(r2.q).multiply(q);
+    }
+  });
+}
+
+const wp=new THREE.Vector3();
+function updateHits(){
+  physics.sides.forEach((b,i)=>{
+    if(!b.b1){hitTargets[i].visible=false;return;}
+    b.b1.getWorldPosition(wp);hitTargets[i].visible=true;hitTargets[i].position.copy(wp);
+    hitTargets[i].scale.setScalar(.92+morph.bust*.12);
+  });
+}
+
+function updateCamera(){
+  const cp=Math.cos(cam.pitch);
+  camera.position.set(Math.sin(cam.yaw)*cp*cam.dist,cam.targetY+Math.sin(cam.pitch)*cam.dist,Math.cos(cam.yaw)*cp*cam.dist);
+  camera.lookAt(0,cam.targetY,0);
+}
+
+function resize(){
+  const w=innerWidth,h=innerHeight;
+  renderer.setSize(Math.max(160,Math.round(w*renderScale)),Math.max(280,Math.round(h*renderScale)),false);
+  camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+addEventListener('resize',resize);updateCamera();resize();
+
+new THREE.GLTFLoader().load('models/female.vrm',g=>{
+  model=g.scene;model.rotation.y=Math.PI;
+  model.traverse(o=>{if(o.isMesh){o.frustumCulled=true;}});
+  modelRoot.add(model);setupRig();loading.style.display='none';
+  statusEl.textContent='lite rig ✓';
+},p=>{if(p.total)loadingText.textContent='Carregando '+Math.round(p.loaded/p.total*100)+'%';},err=>{console.error(err);loadingText.textContent='Falha ao carregar modelo';});
+
+const ray=new THREE.Raycaster(),ndc=new THREE.Vector2(),ptrs=new Map();
+let selected=-1,rotateId=null,pinch=null,drag=0;
+function toNdc(x,y){const r=canvas.getBoundingClientRect();ndc.x=((x-r.left)/r.width)*2-1;ndc.y=-((y-r.top)/r.height)*2+1;}
+function hit(x,y){if(!bustReady)return -1;toNdc(x,y);ray.setFromCamera(ndc,camera);const h=ray.intersectObjects(hitTargets,false);return h.length?h[0].object.userData.i:-1;}
+
+canvas.addEventListener('pointerdown',ev=>{
+  ptrs.set(ev.pointerId,{x:ev.clientX,y:ev.clientY,lx:ev.clientX,ly:ev.clientY});
+  try{canvas.setPointerCapture(ev.pointerId);}catch(_){}
+  const h=hit(ev.clientX,ev.clientY);
+  if(h>=0&&ptrs.size===1){selected=h;drag=0;}
+  else if(ptrs.size===1)rotateId=ev.pointerId;
+  else if(ptrs.size===2){const a=[...ptrs.values()];pinch={d:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),dist:cam.dist};rotateId=null;}
+});
+canvas.addEventListener('pointermove',ev=>{
+  const p=ptrs.get(ev.pointerId);if(!p)return;const dx=ev.clientX-p.lx,dy=ev.clientY-p.ly;p.x=ev.clientX;p.y=ev.clientY;p.lx=ev.clientX;p.ly=ev.clientY;
+  if(ptrs.size===2&&pinch){const a=[...ptrs.values()],d=Math.max(20,Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y));cam.dist=clamp(pinch.dist*(pinch.d/d),1.5,4.0);updateCamera();return;}
+  if(selected>=0){drag+=Math.abs(dx)+Math.abs(dy);const b=physics.sides[selected];b.p.x=clamp(b.p.x+dx*.00072,-physics.limit,physics.limit);b.p.y=clamp(b.p.y-dy*.00074,-physics.limit,physics.limit);b.v.x+=dx*.006;b.v.y-=dy*.006;b.v.z+=Math.abs(dx+dy)*.001;return;}
+  if(rotateId===ev.pointerId){cam.yaw-=dx*.007;cam.pitch=clamp(cam.pitch-dy*.004,-.30,.25);updateCamera();}
+});
+function end(ev){ptrs.delete(ev.pointerId);if(selected>=0){if(drag<11){const b=physics.sides[selected];b.v.z+=1.05;b.v.y+=.32;}selected=-1;}rotateId=null;pinch=null;if(ptrs.size===1)rotateId=[...ptrs.keys()][0];}
+canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);
+
+$('mega').onclick=()=>{physics.sides.forEach((b,i)=>{b.v.y+=1.15;b.v.z+=1.5;b.v.x+=(i?1:-1)*.35;});toast('MEGA BOUNCE');};
+$('shake').onclick=()=>{shakeUntil=performance.now()*.001+1.25;toast('SHAKE MODE');};
+$('focus').onclick=()=>{cam.focus=!cam.focus;cam.dist=cam.focus?1.52:2.48;cam.targetY=cam.focus?1.34:1.18;updateCamera();$('focus').classList.toggle('active',cam.focus);};
+$('slow').onclick=()=>{slow=!slow;$('slow').classList.toggle('active',slow);toast(slow?'Slow motion':'Normal speed');};
+document.querySelectorAll('.pose').forEach(b=>b.onclick=()=>{document.querySelectorAll('.pose').forEach(x=>x.classList.remove('active'));b.classList.add('active');pose=b.dataset.pose;});
+$('toggle').onclick=()=>{$('panel').classList.toggle('closed');$('toggle').textContent=$('panel').classList.contains('closed')?'⌃':'⌄';};
+
+$('bust').oninput=e=>{morph.bust=parseFloat(e.target.value);$('bustV').textContent=morph.bust.toFixed(2);};
+$('curves').oninput=e=>{morph.curves=parseFloat(e.target.value);$('curvesV').textContent=morph.curves.toFixed(2);};
+$('soft').oninput=e=>{const s=parseFloat(e.target.value);physics.k=32-s*23;physics.d=8-s*6.1;physics.m=1.12+s*.7;physics.limit=.075+s*.055;$('softV').textContent=Math.round(s*100)+'%';};
+$('quality').oninput=e=>{renderScale=parseFloat(e.target.value);autoScale=false;$('qualityV').textContent=Math.round(renderScale*100)+'%';resize();};
+
+let lastFrame=0,lastSim=performance.now(),fpsStart=performance.now(),frames=0,displayFps=0,autoTimer=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  if(now-lastFrame<31)return;
+  const dt=Math.min(.05,(now-lastSim)/1000);lastSim=now;lastFrame=now;
+  const t=now*.001;
+  if(model){
+    const drive=applyPose(t);
+    stepPhysics(dt,drive,t);
+    applyBust();
+    updateHits();
+  }
+  renderer.render(scene,camera);
+  frames++;
+  if(now-fpsStart>1200){
+    displayFps=Math.round(frames*1000/(now-fpsStart));frames=0;fpsStart=now;
+    statusEl.textContent=displayFps+' fps · '+Math.round(renderScale*100)+'%';
+  }
+  if(autoScale&&now-autoTimer>2500){
+    autoTimer=now;
+    if(displayFps&&displayFps<22&&renderScale>.42){renderScale=Math.max(.42,renderScale-.06);resize();}
+    else if(displayFps>29&&renderScale<.64){renderScale=Math.min(.64,renderScale+.03);resize();}
+    $('quality').value=renderScale;$('qualityV').textContent=Math.round(renderScale*100)+'%';
+  }
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
