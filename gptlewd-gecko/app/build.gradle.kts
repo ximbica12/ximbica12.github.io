@@ -5,6 +5,7 @@ plugins {
 android {
     namespace = "com.ximbica.gptlewd.gecko"
     compileSdk = 37
+    compileSdkMinor = 1
 
     defaultConfig {
         applicationId = "com.ximbica.gptlewd.gecko"
