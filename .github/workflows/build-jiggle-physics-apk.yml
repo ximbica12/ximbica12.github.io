@@ -1,0 +1,74 @@
+name: Build Jiggle Physics APK
+
+on:
+  push:
+    branches:
+      - jiggle-physics-app-v2
+    paths:
+      - "jiggle-physics-android/**"
+      - ".github/workflows/build-jiggle-physics-apk.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jiggle-physics-android
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Bundle CC0 VRoid character and renderer
+        run: |
+          set -euxo pipefail
+          mkdir -p app/src/main/assets/vendor app/src/main/assets/models
+          curl -L --fail --retry 3 -o app/src/main/assets/vendor/three.min.js             https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js
+          curl -L --fail --retry 3 -o app/src/main/assets/vendor/GLTFLoader.js             https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js
+          curl -L --fail --retry 3 -o app/src/main/assets/vendor/three-vrm.js             https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@0.6.11/lib/three-vrm.js
+          curl -L --fail --retry 3 -o app/src/main/assets/models/female.vrm             https://raw.githubusercontent.com/madjin/vrm-samples/master/vroid/beta/HairSample_Female.vrm
+          ls -lh app/src/main/assets/vendor app/src/main/assets/models
+
+      - name: Inspect VRM rig
+        run: python3 tools/inspect_vrm.py app/src/main/assets/models/female.vrm
+
+      - name: Verify required Bust bones
+        run: |
+          python3 tools/inspect_vrm.py app/src/main/assets/models/female.vrm | tee /tmp/rig.txt
+          grep -q "J_Sec_L_Bust1" /tmp/rig.txt
+          grep -q "J_Sec_R_Bust1" /tmp/rig.txt
+
+      - name: Validate runtime JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("app/src/main/assets/index.html").read_text(encoding="utf-8")
+          blocks = re.findall(r"<script>(.*?)</script>", html, re.S)
+          if not blocks:
+              raise SystemExit("No inline runtime script found")
+          Path("/tmp/anime-jiggle-runtime.js").write_text("\n".join(blocks), encoding="utf-8")
+          PY
+          node --check /tmp/anime-jiggle-runtime.js
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnimeJiggleLab-v2-debug
+          path: jiggle-physics-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
