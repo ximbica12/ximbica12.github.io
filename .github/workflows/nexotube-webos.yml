@@ -1,0 +1,81 @@
+name: Build NexoTube TV webOS
+
+on:
+  push:
+    branches: [nexotube-webos]
+    paths:
+      - 'NexoTubeWebOS/**'
+      - '.github/workflows/nexotube-webos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout NexoTube TV patches
+        uses: actions/checkout@v4
+
+      - name: Clone webOS TV engine
+        run: git clone --depth 1 https://github.com/webosbrew/youtube-webos.git upstream
+
+      - name: Apply NexoTube TV patch
+        run: python3 NexoTubeWebOS/patch_webos.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: upstream/pnpm-lock.yaml
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        working-directory: upstream
+        run: pnpm install --frozen-lockfile
+
+      - name: Check old webOS compatibility
+        working-directory: upstream
+        run: pnpm run test:compat
+
+      - name: Build production bundle
+        working-directory: upstream
+        run: pnpm run build
+
+      - name: Package IPK
+        working-directory: upstream
+        run: pnpm run package
+
+      - name: Collect IPK
+        shell: bash
+        run: |
+          IPK="$(find upstream -maxdepth 1 -type f -name '*.ipk' | head -n 1)"
+          test -n "$IPK"
+          cp "$IPK" NexoTube-TV-webOS3-0.1.0.ipk
+
+      - name: Archive corresponding source
+        run: |
+          rm -rf upstream/.git upstream/node_modules
+          zip -qr NexoTube-TV-webOS3-0.1.0-source.zip upstream NexoTubeWebOS
+
+      - name: Upload IPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexoTube-TV-webOS3-IPK
+          path: NexoTube-TV-webOS3-0.1.0.ipk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload source
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexoTube-TV-webOS3-Source
+          path: NexoTube-TV-webOS3-0.1.0-source.zip
+          if-no-files-found: error
+          retention-days: 30
