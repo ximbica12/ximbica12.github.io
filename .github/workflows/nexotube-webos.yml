@@ -41,13 +41,13 @@ jobs:
         working-directory: upstream
         run: pnpm install --frozen-lockfile
 
-      - name: Check old webOS compatibility
-        working-directory: upstream
-        run: pnpm run test:compat
-
       - name: Build production bundle
         working-directory: upstream
         run: pnpm run build
+
+      - name: Check old webOS compatibility
+        working-directory: upstream
+        run: pnpm run test:compat
 
       - name: Package IPK
         working-directory: upstream
