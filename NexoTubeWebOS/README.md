@@ -1,72 +1,87 @@
-# NexoTube TV — LG webOS
+# NexoTube TV — LG webOS 3.x
 
-Port experimental do NexoTube para TVs LG webOS, com foco inicial na **LG 43UJ6565-SB / webOS 3.9.3**.
+Versão independente do NexoTube para TVs LG webOS, com alvo inicial na **LG 43UJ6565-SB / webOS 3.9.3**.
 
-## Arquitetura
+## Correção da arquitetura
 
-Esta versão **não é o APK Android convertido**. Ela usa como engine de TV o projeto GPL-3.0
-`webosbrew/youtube-webos`, mantendo o frontend de TV do YouTube para login, navegação e playback,
-e adicionando a camada NexoTube por cima.
+A versão 0.1-alpha usava o frontend `youtube.com/tv` através de uma base Homebrew. Isso foi removido por completo na 0.2.
 
-Isso é intencional: webOS TV 3.x usa Chromium 38 e não executa Android/Media3/NewPipe.
+**NexoTube TV 0.2 não abre, não incorpora e não autentica em `youtube.com/tv`.**
+Ele também não usa o app ID `youtube.leanback.v4` e não compartilha intencionalmente sessão/cookies com o YouTube oficial da TV.
 
-## Compatibilidade alvo
+O frontend agora é próprio e os dados de catálogo/streams vêm de APIs Piped configuráveis. O Piped fornece endpoints públicos para trending, busca, streams, canais e feed de inscrições sem autenticação.
 
-- LG webOS TV 3.x (Chromium 38) em diante
-- 1920x1080 e 4K
-- Magic Remote / controle LG
-- Developer Mode ou Homebrew Channel
-- sem root obrigatório
+## Dados do usuário
 
-App ID: `com.ximbica.nexotube.webos`
+Cada perfil NexoTube guarda localmente no armazenamento do aplicativo:
 
-O ID é diferente de `youtube.leanback.v4`, então o NexoTube TV pode coexistir com o YouTube oficial.
+- inscrições;
+- histórico;
+- Assistir mais tarde;
+- região;
+- preferências.
 
-## 0.1-alpha
+Trocar de perfil troca esse conjunto de dados. Nenhuma conta do YouTube oficial é necessária para usar a 0.2.
 
-- frontend YouTube TV para conta, recomendações, inscrições e playback;
-- adblock e SponsorBlock herdados da base;
-- Shorts mantidos;
-- miniaturas melhoradas por padrão;
-- modo de animações reduzidas para aliviar webOS 3.x / Chromium 38;
-- painel NexoTube acessível pelo botão verde;
-- identidade visual NexoTube;
-- assets próprios;
-- build transpila para Chrome 38 por meio do browserslist upstream.
+## Recursos 0.2-alpha
+
+- interface TV própria;
+- Home com recomendações baseadas no histórico local, inscrições e região;
+- busca;
+- inscrições locais;
+- Biblioteca com histórico e Assistir mais tarde;
+- múltiplos perfis locais;
+- player próprio usando HLS/progressive streams retornados pela API;
+- fallback automático entre instâncias públicas;
+- controle remoto LG: setas, OK, Voltar, play/pause e seek;
+- app ID separado: `com.ximbica.nexotube.webos`;
+- pode coexistir com o YouTube oficial;
+- nenhuma navegação para `youtube.com/tv`.
+
+## Ícone
+
+O pacote usa **o mesmo launcher icon que a build Android atual do NexoTube herda**. O workflow baixa esse asset diretamente da fonte Android e o coloca no `.ipk`; o ícone provisório da 0.1 foi removido.
+
+## Backend
+
+A 0.2 usa uma lista com fallback entre instâncias públicas Piped. A instância pode ser trocada em Configurações.
+
+Instância inicial:
+
+`https://pipedapi.kavin.rocks`
+
+Fallbacks:
+
+- `https://pipedapi.leptons.xyz`
+- `https://piped-api.garudalinux.org`
+
+Instâncias públicas podem ficar indisponíveis; por isso o fallback é importante. Para máxima estabilidade futura, é recomendável hospedar uma instância própria.
 
 ## Build
 
-O GitHub Actions clona `webosbrew/youtube-webos`, aplica `patch_webos.py`, executa o build
-e gera o arquivo `.ipk`.
+O GitHub Actions usa o CLI oficial atual do webOS e gera diretamente:
+
+`NexoTube-TV-webOS3-0.2.0-independent.ipk`
+
+O CI também falha se encontrar no runtime:
+
+- `youtube.com/tv`;
+- `youtube.leanback.v4`;
+- dependência do antigo wrapper Homebrew.
 
 ## Instalação
 
-### Developer Mode (recomendado para webOS 3.9.3 sem root)
-
-1. Instale o app **Developer Mode** pela LG Content Store.
-2. Entre com uma conta LG Developer.
-3. Ative **Developer Mode** e **Key Server**.
-4. No PC, registre a TV no webOS CLI/Device Manager.
-5. Instale o `.ipk` gerado.
-
-Exemplo:
+Com Developer Mode / webOS CLI:
 
 ```bash
-ares-install -d tv ./com.ximbica.nexotube.webos_0.1.0_all.ipk
+ares-install -d tv NexoTube-TV-webOS3-0.2.0-independent.ipk
 ares-launch -d tv com.ximbica.nexotube.webos
 ```
 
-### Homebrew Channel
+## Compatibilidade
 
-Se o Homebrew Channel já estiver instalado, o mesmo `.ipk` pode ser instalado como app de
-desenvolvedor/homebrew. Um repositório Homebrew próprio será adicionado depois que a primeira
-versão for validada fisicamente na TV.
-
-## Observação sobre root
-
-Para televisores LG 2017, RootMyTV é conhecido como corrigido a partir do webOS 3.9.2.
-Portanto, **não dependa de root** nessa TV com webOS 3.9.3.
+A aplicação é escrita em JavaScript compatível com ES5 e o workflow executa `es-check` antes de empacotar, visando o Chromium 38 do webOS 3.x.
 
 ## Licença
 
-GPL-3.0-only, acompanhando a base `webosbrew/youtube-webos`.
+NexoTube TV é distribuído sob GPL-3.0-or-later. O launcher icon utilizado segue a licença do projeto Android de origem.
