@@ -1,0 +1,81 @@
+name: Build NexoTube TV webOS
+
+on:
+  push:
+    branches: [nexotube-webos]
+    paths:
+      - 'NexoTubeWebOS/**'
+      - '.github/workflows/nexotube-webos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout NexoTube TV
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install official webOS CLI
+        run: npm install -g @webos-tools/cli@3.2.6
+
+      - name: Use the Android app launcher icon
+        run: |
+          curl --fail --location \
+            https://raw.githubusercontent.com/libre-tube/LibreTube/v32.1/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
+            --output NexoTubeWebOS/app/icon.png
+          cp NexoTubeWebOS/app/icon.png NexoTubeWebOS/app/largeIcon.png
+
+      - name: Verify NexoTube is independent from YouTube TV
+        shell: bash
+        run: |
+          if grep -R -E 'youtube\.com/tv|youtube\.leanback\.v4|webosbrew/youtube-webos' NexoTubeWebOS/app; then
+            echo "Forbidden YouTube TV wrapper reference found in runtime"
+            exit 1
+          fi
+          grep -q '"id": "com.ximbica.nexotube.webos"' NexoTubeWebOS/app/appinfo.json
+
+      - name: Check JavaScript syntax
+        run: node --check NexoTubeWebOS/app/app.js
+
+      - name: Check Chromium 38 JavaScript compatibility
+        run: npx --yes es-check@7 es5 NexoTubeWebOS/app/app.js
+
+      - name: Package IPK
+        run: |
+          mkdir -p dist
+          ares-package NexoTubeWebOS/app -o dist
+          IPK="$(find dist -maxdepth 1 -type f -name '*.ipk' | head -n 1)"
+          test -n "$IPK"
+          cp "$IPK" NexoTube-TV-webOS3-0.2.0-independent.ipk
+
+      - name: Archive corresponding source
+        run: |
+          zip -qr NexoTube-TV-webOS3-0.2.0-source.zip \
+            NexoTubeWebOS/app \
+            NexoTubeWebOS/README.md
+
+      - name: Upload IPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexoTube-TV-webOS3-Independent-IPK
+          path: NexoTube-TV-webOS3-0.2.0-independent.ipk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload source
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexoTube-TV-webOS3-Independent-Source
+          path: NexoTube-TV-webOS3-0.2.0-source.zip
+          if-no-files-found: error
+          retention-days: 30

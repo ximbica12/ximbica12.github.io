@@ -1,0 +1,17 @@
+{
+  "id": "com.ximbica.nexotube.webos",
+  "version": "0.2.0",
+  "vendor": "ximbica12",
+  "type": "web",
+  "main": "index.html",
+  "title": "NexoTube TV",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#111111",
+  "bgColor": "#0f0f0f",
+  "requiredMemory": 64,
+  "resolution": "1920x1080",
+  "supportQuickStart": true,
+  "transparent": false,
+  "disableBackHistoryAPI": true
+}
