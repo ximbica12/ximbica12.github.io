@@ -14,69 +14,68 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
-      - name: Checkout NexoTube TV patches
+      - name: Checkout NexoTube TV
         uses: actions/checkout@v4
-
-      - name: Clone webOS TV engine
-        run: git clone --depth 1 https://github.com/webosbrew/youtube-webos.git upstream
-
-      - name: Apply NexoTube TV patch
-        run: python3 NexoTubeWebOS/patch_webos.py
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
-      - name: Enable pnpm
+      - name: Install official webOS CLI
+        run: npm install -g @webos-tools/cli@3.2.6
+
+      - name: Use the Android app launcher icon
         run: |
-          corepack enable
-          corepack prepare pnpm@10.33.0 --activate
-          pnpm --version
+          curl --fail --location \
+            https://raw.githubusercontent.com/libre-tube/LibreTube/v32.1/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
+            --output NexoTubeWebOS/app/icon.png
+          cp NexoTubeWebOS/app/icon.png NexoTubeWebOS/app/largeIcon.png
 
-      - name: Install dependencies
-        working-directory: upstream
-        run: pnpm install --frozen-lockfile
-
-      - name: Build production bundle
-        working-directory: upstream
-        run: pnpm run build
-
-      - name: Check old webOS compatibility
-        working-directory: upstream
-        run: pnpm run test:compat
-
-      - name: Package IPK
-        working-directory: upstream
-        run: pnpm run package
-
-      - name: Collect IPK
+      - name: Verify NexoTube is independent from YouTube TV
         shell: bash
         run: |
-          IPK="$(find upstream -maxdepth 1 -type f -name '*.ipk' | head -n 1)"
+          if grep -R -E 'youtube\.com/tv|youtube\.leanback\.v4|webosbrew/youtube-webos' NexoTubeWebOS/app; then
+            echo "Forbidden YouTube TV wrapper reference found in runtime"
+            exit 1
+          fi
+          grep -q '"id": "com.ximbica.nexotube.webos"' NexoTubeWebOS/app/appinfo.json
+
+      - name: Check JavaScript syntax
+        run: node --check NexoTubeWebOS/app/app.js
+
+      - name: Check Chromium 38 JavaScript compatibility
+        run: npx --yes es-check@7 es5 NexoTubeWebOS/app/app.js
+
+      - name: Package IPK
+        run: |
+          mkdir -p dist
+          ares-package NexoTubeWebOS/app -o dist
+          IPK="$(find dist -maxdepth 1 -type f -name '*.ipk' | head -n 1)"
           test -n "$IPK"
-          cp "$IPK" NexoTube-TV-webOS3-0.1.0.ipk
+          cp "$IPK" NexoTube-TV-webOS3-0.2.0-independent.ipk
 
       - name: Archive corresponding source
         run: |
-          rm -rf upstream/.git upstream/node_modules
-          zip -qr NexoTube-TV-webOS3-0.1.0-source.zip upstream NexoTubeWebOS
+          zip -qr NexoTube-TV-webOS3-0.2.0-source.zip \
+            NexoTubeWebOS/app \
+            NexoTubeWebOS/README.md
 
       - name: Upload IPK
         uses: actions/upload-artifact@v4
         with:
-          name: NexoTube-TV-webOS3-IPK
-          path: NexoTube-TV-webOS3-0.1.0.ipk
+          name: NexoTube-TV-webOS3-Independent-IPK
+          path: NexoTube-TV-webOS3-0.2.0-independent.ipk
           if-no-files-found: error
           retention-days: 30
 
       - name: Upload source
         uses: actions/upload-artifact@v4
         with:
-          name: NexoTube-TV-webOS3-Source
-          path: NexoTube-TV-webOS3-0.1.0-source.zip
+          name: NexoTube-TV-webOS3-Independent-Source
+          path: NexoTube-TV-webOS3-0.2.0-source.zip
           if-no-files-found: error
           retention-days: 30
