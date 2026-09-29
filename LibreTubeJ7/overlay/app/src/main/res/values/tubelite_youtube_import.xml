@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="youtube_direct_import">Import directly from YouTube</string>
+    <string name="youtube_direct_import_summary">Sign in with Google and copy subscriptions, playlists and liked videos. No CSV.</string>
+    <string name="youtube_direct_import_start">Choose the Google account whose YouTube library you want to import.</string>
+    <string name="youtube_direct_import_working">Importing your YouTube library… This can take a few minutes.</string>
+    <string name="youtube_direct_import_done">Imported %1$d subscriptions, %2$d playlists, %3$d playlist videos and %4$d liked videos. Google does not expose its Watch Later playlist; TubeLite keeps a local Watch Later for this profile.</string>
+    <string name="youtube_direct_import_cancelled">Google sign-in was cancelled.</string>
+    <string name="youtube_direct_import_failed">YouTube import failed: %1$s</string>
+
+    <string name="profiles">Profiles</string>
+    <string name="new_profile">New profile</string>
+    <string name="profile_name">Profile name</string>
+    <string name="profile_create">Create</string>
+    <string name="your_subscriptions">Your subscriptions</string>
+    <string name="discovery_for_you">For you</string>
+    <string name="watch_later_local">Watch later</string>
+    <string name="add_watch_later">Save to Watch later</string>
+    <string name="remove_watch_later">Remove from Watch later</string>
+    <string name="your_channels">Your channels</string>
+    <string name="your_channels_count">Subscribed channels (%1$d)</string>
+    <string name="shorts_tab">Shorts</string>
+    <string name="shorts_empty">Building a Shorts feed from your watch history, subscriptions and selected region… Pull to refresh.</string>
+    <string name="tubelite_home">Home</string>
+    <string name="tubelite_you">You</string>
+    <string name="yt_like">Like</string>
+    <string name="yt_dislike">Dislike</string>
+    <string name="yt_rating_done">Rating saved to your YouTube account.</string>
+    <string name="yt_rating_failed">Could not rate on YouTube: %1$s</string>
+    <string name="yt_rating_cancelled">Google authorization was cancelled.</string>
+    <string name="yt_rating_login_required">Connect a Google/YouTube account to this profile first.</string>
+    <string name="yt_liked_videos">Liked videos (YouTube)</string>
+    <string name="yt_imported_playlist">Imported directly from your YouTube account.</string>
+    <string name="discovery_region_hint">For you • adapted to your history and region</string>
+    <string name="shorts_for_you">Shorts for you</string>
+    <string name="yt_rating_wrong_account">The authorized Google account does not match the active profile.</string>
+    <string name="home_for_you">For you</string>
+    <string name="home_for_you_hint">Picked from what you watch</string>
+    <string name="home_language_discovery">New in %1$s</string>
+    <string name="home_regional_discovery">Interesting in your region</string>
+    <string name="home_subscriptions_compact">From your subscriptions</string>
+</resources>
