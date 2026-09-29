@@ -20,13 +20,13 @@ s = sub_once(
 )
 s = sub_once(
     r'versionCode\s*=\s*\d+',
-    'versionCode = 320108',
+    'versionCode = 320109',
     s,
     "versionCode",
 )
 s = sub_once(
     r'versionName\s*=\s*"[^"]+"',
-    'versionName = "32.1-j7.8"',
+    'versionName = "32.1-j7.9"',
     s,
     "versionName",
 )
@@ -797,6 +797,232 @@ new_fetch = """            streams = withContext(Dispatchers.IO) {
 if old_fetch not in online:
     raise SystemExit("patch failed: OnlinePlayerService fetch anchor")
 online = online.replace(old_fetch, new_fetch, 1)
+
+# J7.9 live playback: live manifests are time-sensitive and must not share the
+# normal cached/generated-DASH path. Prefer a fresh HLS manifest, fall back to
+# YouTube's live DASH manifest, always start at the live edge, and recover from
+# transient/expired source errors by re-extracting once and switching source.
+if "import androidx.media3.common.PlaybackException\n" not in online:
+    online = online.replace(
+        "import androidx.media3.common.Player\n",
+        "import androidx.media3.common.Player\n"
+        "import androidx.media3.common.PlaybackException\n",
+        1,
+    )
+if "import androidx.media3.datasource.DefaultHttpDataSource\n" not in online:
+    online = online.replace(
+        "import androidx.media3.datasource.DefaultDataSource\n",
+        "import androidx.media3.datasource.DefaultDataSource\n"
+        "import androidx.media3.datasource.DefaultHttpDataSource\n",
+        1,
+    )
+
+listener_anchor = "    private val playerListener = object : Player.Listener {\n"
+live_fields = """    private var liveRecoveryAttempts = 0
+    private var liveRecoveryInProgress = false
+    private var lastLiveSourceWasHls = true
+
+"""
+if "private var liveRecoveryAttempts" not in online:
+    if listener_anchor not in online:
+        raise SystemExit("patch failed: live listener anchor")
+    online = online.replace(listener_anchor, live_fields + listener_anchor, 1)
+
+online = online.replace(
+    """                Player.STATE_IDLE -> {
+                    onDestroy()
+                }
+""",
+    """                Player.STATE_IDLE -> {
+                    // A live source error temporarily moves Media3 to IDLE.
+                    // Keep the service alive while we re-extract/switch manifest.
+                    if (!liveRecoveryInProgress) onDestroy()
+                }
+""",
+    1,
+)
+
+listener_end = """        }
+    }
+
+    override suspend fun onServiceCreated(args: Bundle) {
+"""
+listener_with_recovery = """        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            if (streams?.isLive != true ||
+                liveRecoveryInProgress ||
+                liveRecoveryAttempts >= 3
+            ) {
+                return
+            }
+
+            liveRecoveryInProgress = true
+            liveRecoveryAttempts += 1
+
+            scope.launch {
+                delay(350L * liveRecoveryAttempts)
+                StreamPrefetchCache.invalidate(videoId)
+
+                val freshStreams = withTimeoutOrNull(20_000L) {
+                    runCatching {
+                        MediaServiceRepository.instance.getStreams(videoId).let {
+                            DeArrowUtil.deArrowStreams(it, videoId)
+                        }
+                    }.onFailure {
+                        Log.e(TAG(), "Live re-extraction failed", it)
+                    }.getOrNull()
+                }
+
+                if (freshStreams == null) {
+                    liveRecoveryInProgress = false
+                    if (liveRecoveryAttempts >= 3) {
+                        toastFromMainDispatcher("Não foi possível recuperar a transmissão ao vivo")
+                    }
+                    return@launch
+                }
+
+                streams = freshStreams
+
+                withContext(Dispatchers.Main) {
+                    runCatching {
+                        exoPlayer?.stop()
+                        exoPlayer?.clearMediaItems()
+
+                        // Alternate HLS/DASH after a source error. Fresh HLS remains
+                        // the initial/default path because it follows the moving live
+                        // playlist instead of a generated static DASH manifest.
+                        setStreamSource(preferLiveHls = !lastLiveSourceWasHls)
+                        exoPlayer?.seekToDefaultPosition()
+                        exoPlayer?.prepare()
+                        exoPlayer?.playWhenReady = true
+                    }.onFailure {
+                        Log.e(TAG(), "Live recovery failed", it)
+                    }
+                    liveRecoveryInProgress = false
+                }
+            }
+        }
+    }
+
+    override suspend fun onServiceCreated(args: Bundle) {
+"""
+if "override fun onPlayerError(error: PlaybackException)" not in online:
+    if listener_end not in online:
+        raise SystemExit("patch failed: live listener end")
+    online = online.replace(listener_end, listener_with_recovery, 1)
+
+configure_old = """    private fun configurePlayer(seekToPositionMs: Long) {
+        // seek to the previous position if available
+        if (seekToPositionMs != 0L) {
+            exoPlayer?.seekTo(seekToPositionMs)
+        } else if (watchPositionsEnabled) {
+"""
+configure_new = """    private fun configurePlayer(seekToPositionMs: Long) {
+        // Never restore a saved VOD position into a moving live window.
+        if (streams?.isLive == true) {
+            exoPlayer?.seekToDefaultPosition()
+        } else if (seekToPositionMs != 0L) {
+            exoPlayer?.seekTo(seekToPositionMs)
+        } else if (watchPositionsEnabled) {
+"""
+if configure_old not in online:
+    raise SystemExit("patch failed: live configure anchor")
+online = online.replace(configure_old, configure_new, 1)
+
+navigate_old = """    override fun navigateVideo(videoId: String) {
+        this.streams = null
+
+        super.navigateVideo(videoId)
+    }
+"""
+navigate_new = """    override fun navigateVideo(videoId: String) {
+        this.streams = null
+        liveRecoveryAttempts = 0
+        liveRecoveryInProgress = false
+        lastLiveSourceWasHls = true
+        StreamPrefetchCache.invalidate(videoId)
+
+        super.navigateVideo(videoId)
+    }
+"""
+if navigate_old not in online:
+    raise SystemExit("patch failed: live navigate anchor")
+online = online.replace(navigate_old, navigate_new, 1)
+
+source_signature = "    private fun setStreamSource() {\n        val streams = streams ?: return\n\n"
+source_prefix = """    private fun setStreamSource(preferLiveHls: Boolean = true) {
+        val streams = streams ?: return
+
+        if (streams.isLive) {
+            val hlsUrl = streams.hls
+            val dashUrl = streams.dash
+
+            if (preferLiveHls && hlsUrl != null) {
+                val httpFactory = DefaultHttpDataSource.Factory()
+                    .setConnectTimeoutMs(12_000)
+                    .setReadTimeoutMs(20_000)
+                    .setAllowCrossProtocolRedirects(true)
+                val dataSourceFactory = DefaultDataSource.Factory(this, httpFactory)
+                val source = HlsMediaSource.Factory(dataSourceFactory)
+                    .setAllowChunklessPreparation(true)
+                    .setPlaylistParserFactory(YoutubeHlsPlaylistParser.Factory())
+                    .createMediaSource(
+                        createMediaItem(
+                            ProxyHelper.rewriteUrlUsingProxyPreference(hlsUrl).toUri(),
+                            MimeTypes.APPLICATION_M3U8,
+                            streams
+                        )
+                    )
+
+                lastLiveSourceWasHls = true
+                exoPlayer?.setMediaSource(source)
+                return
+            }
+
+            if (dashUrl != null) {
+                lastLiveSourceWasHls = false
+                exoPlayer?.setMediaItem(
+                    createMediaItem(
+                        ProxyHelper.rewriteUrlUsingProxyPreference(dashUrl).toUri(),
+                        MimeTypes.APPLICATION_MPD,
+                        streams
+                    )
+                )
+                return
+            }
+
+            if (hlsUrl != null) {
+                val httpFactory = DefaultHttpDataSource.Factory()
+                    .setConnectTimeoutMs(12_000)
+                    .setReadTimeoutMs(20_000)
+                    .setAllowCrossProtocolRedirects(true)
+                val dataSourceFactory = DefaultDataSource.Factory(this, httpFactory)
+                val source = HlsMediaSource.Factory(dataSourceFactory)
+                    .setAllowChunklessPreparation(true)
+                    .setPlaylistParserFactory(YoutubeHlsPlaylistParser.Factory())
+                    .createMediaSource(
+                        createMediaItem(
+                            ProxyHelper.rewriteUrlUsingProxyPreference(hlsUrl).toUri(),
+                            MimeTypes.APPLICATION_M3U8,
+                            streams
+                        )
+                    )
+
+                lastLiveSourceWasHls = true
+                exoPlayer?.setMediaSource(source)
+                return
+            }
+
+            toastFromMainThread(R.string.unknown_error)
+            return
+        }
+
+"""
+if source_signature not in online:
+    raise SystemExit("patch failed: live source signature")
+online = online.replace(source_signature, source_prefix, 1)
+
 online_path.write_text(online, encoding="utf-8")
 
 
@@ -805,9 +1031,9 @@ notice = Path("upstream/NEXOTUBE_MODIFICATIONS.md")
 notice.write_text(
     "# NexoTube modifications\n\n"
     "Based on LibreTube v32.1 (GPL-3.0-or-later).\n"
-    "Changes: Android applicationId, NexoTube branding, ARMv7 targeting, pt-BR fixes, direct Google library import, account ratings, lifecycle-safe isolated profiles, discovery-first language-aware Home, autoplay Shorts, lightweight stream prefetching, automatic PT caption fallback, local Watch Later, playback timeout/SABR hardening, selected upstream crash fixes, and Oreo safeguards for Samsung Galaxy J7 Prime.\n"
+    "Changes: Android applicationId, NexoTube branding, ARMv7 targeting, pt-BR fixes, direct Google library import, account ratings, lifecycle-safe isolated profiles, discovery-first language-aware Home, autoplay Shorts, VOD-only stream prefetching, live HLS-first playback with fresh manifest recovery and DASH fallback, automatic PT caption fallback, local Watch Later, playback timeout/SABR hardening, selected upstream crash fixes, and Oreo safeguards for Samsung Galaxy J7 Prime.\n"
     "The upstream project and copyright notices remain intact.\n",
     encoding="utf-8",
 )
 
-print("NexoTube J7.8 patch applied successfully")
+print("NexoTube J7.9 patch applied successfully")
