@@ -40,7 +40,11 @@ object StreamPrefetchCache {
 
     fun get(videoId: String): Streams? = synchronized(lock) {
         val entry = cache[videoId] ?: return@synchronized null
-        if (System.currentTimeMillis() - entry.createdAt > TTL_MS) {
+        if (entry.streams.isLive ||
+            System.currentTimeMillis() - entry.createdAt > TTL_MS
+        ) {
+            // Live manifests/stream URLs are time-sensitive. Reusing them can
+            // produce an immediate source error or a stall shortly after start.
             cache.remove(videoId)
             null
         } else {
@@ -49,9 +53,15 @@ object StreamPrefetchCache {
     }
 
     private fun put(videoId: String, streams: Streams) {
+        if (streams.isLive) return
         synchronized(lock) {
             cache[videoId] = Entry(streams)
         }
+    }
+
+    fun invalidate(videoId: String) = synchronized(lock) {
+        cache.remove(videoId)
+        fetchLocks.remove(videoId)
     }
 
     suspend fun getOrFetch(videoId: String): Streams {
