@@ -135,7 +135,7 @@ class HomeViewModel : ViewModel() {
             onSuccess = { videos ->
                 feed.updateIfChanged(videos)
                 StreamPrefetchCache.prefetch(
-                    videos.take(2).mapNotNull { it.url }
+                    videos.filterNot { it.isLive }.take(2).mapNotNull { it.url }
                 )
             },
             ioBlock = { tryLoadFeed(subscriptionsViewModel) }
@@ -187,7 +187,7 @@ class HomeViewModel : ViewModel() {
         ).take(24)
 
         discovery.updateIfChanged(filtered)
-        StreamPrefetchCache.prefetch(filtered.take(3).mapNotNull { it.url })
+        StreamPrefetchCache.prefetch(filtered.filterNot { it.isLive }.take(3).mapNotNull { it.url })
     }
 
     private suspend fun loadLanguageDiscovery(
@@ -218,7 +218,7 @@ class HomeViewModel : ViewModel() {
             .take(18)
 
         languageDiscovery.updateIfChanged(languageResults)
-        StreamPrefetchCache.prefetch(languageResults.take(2).mapNotNull { it.url })
+        StreamPrefetchCache.prefetch(languageResults.filterNot { it.isLive }.take(2).mapNotNull { it.url })
     }
 
     private suspend fun loadRegionalDiscovery(
@@ -245,7 +245,7 @@ class HomeViewModel : ViewModel() {
         trending.updateIfChanged(
             category to TrendsViewModel.TrendingStreams(region, regional)
         )
-        StreamPrefetchCache.prefetch(regional.take(2).mapNotNull { it.url })
+        StreamPrefetchCache.prefetch(regional.filterNot { it.isLive }.take(2).mapNotNull { it.url })
     }
 
     private suspend fun loadVideosToContinueWatching() {
