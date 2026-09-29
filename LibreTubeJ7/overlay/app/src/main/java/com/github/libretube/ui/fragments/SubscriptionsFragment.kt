@@ -396,7 +396,7 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
 
         StreamPrefetchCache.prefetch(
             sortedFeed
-                .filter { it.type != VideoCardsAdapter.CAUGHT_UP_STREAM_TYPE }
+                .filter { it.type != VideoCardsAdapter.CAUGHT_UP_STREAM_TYPE && !it.isLive }
                 .take(3)
                 .mapNotNull { it.url },
             limit = 3
